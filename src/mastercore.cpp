@@ -30,6 +30,9 @@
 
 #include <fstream>
 
+// #include <algorithm>
+// #include <cmath>
+
 #include <boost/assign/list_of.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
@@ -42,8 +45,8 @@
 
 #include <openssl/sha.h>
 
-// give same amount of TMSC to everybody
-#define MY_TMSC_HACK
+#define MY_SP_HACK
+
 // #define DISABLE_LOG_FILE 
 static FILE *mp_fp = NULL;
 
@@ -68,18 +71,20 @@ static uint64_t exodus_balance;
 static boost::filesystem::path MPPersistencePath;
 
 int msc_debug0 = 1;
-int msc_debug  = 1;
 int msc_debug1 = 1;
 int msc_debug2 = 1;
-int msc_debug3 = 1;
+int msc_debug3 = 0;
 int msc_debug4 = 1;
 int msc_debug5 = 1;
-int msc_debug6 = 1;
+int msc_debug6 = 0;
 
+int msc_debug_parser= 0;
+int msc_debug_vin   = 0;
+int msc_debug_script= 0;
 int msc_debug_dex   = 1;
 int msc_debug_send  = 1;
 int msc_debug_spec  = 1;
-int msc_debug_exo   = 1;
+int msc_debug_exo   = 0;
 int msc_debug_tally = 1;
 
 // follow this variable through the code to see how/which Master Protocol transactions get invalidated
@@ -89,7 +94,7 @@ static int BitcoinCore_errors = 0;    // TODO: watch this count, check returns o
 // disable TMSC handling for now, has more legacy corner cases
 static int ignore_all_but_MSC = 0;
 static int disableLevelDB = 0;
-static int disable_Persistence = 1;
+static int disable_Persistence = 0;
 
 static int mastercoreInitialized = 0;
 
@@ -1239,16 +1244,14 @@ vector<vector<unsigned char> > vSolutions;
   return true;
 }
 
-int TXExodusFundraiser(const CTransaction &wtx, string sender, int64_t ExodusHighestValue, int nBlock, unsigned int nTime) {
-  #include <algorithm>
-  #include <cmath>
-
+int TXExodusFundraiser(const CTransaction &wtx, string sender, int64_t ExodusHighestValue, int nBlock, unsigned int nTime)
+{
   if (nBlock >= GENESIS_BLOCK && nBlock <= LAST_EXODUS_BLOCK) { //Exodus Fundraiser start/end blocks
     //printf("transaction: %s\n", wtx.ToString().c_str() );
     int deadline_timeleft=1377993600-nTime;
     double bonus= 1 + std::max( 0.10 * deadline_timeleft / 604800 , 0.0 );
     uint64_t msc_tot= round( 100 * ExodusHighestValue * bonus ); 
-    if (msc_debug3) fprintf(mp_fp, "Exodus Fundraiser tx detected, tx %s generated %lu.%08lu\n",wtx.GetHash().ToString().c_str(), msc_tot / COIN, msc_tot % COIN);
+    if (msc_debug_exo) fprintf(mp_fp, "Exodus Fundraiser tx detected, tx %s generated %lu.%08lu\n",wtx.GetHash().ToString().c_str(), msc_tot / COIN, msc_tot % COIN);
  
     update_tally_map(sender, MASTERCOIN_CURRENCY_MSC, msc_tot, MONEY);
     update_tally_map(sender, MASTERCOIN_CURRENCY_TMSC, msc_tot, MONEY);
@@ -1378,7 +1381,7 @@ uint64_t txFee = 0;
             {
             CTxDestination address;
 
-            if (msc_debug) fprintf(mp_fp, "vin=%d:%s\n", i, wtx.vin[i].scriptSig.ToString().c_str());
+            if (msc_debug_vin) fprintf(mp_fp, "vin=%d:%s\n", i, wtx.vin[i].scriptSig.ToString().c_str());
 
             CTransaction txPrev;
             uint256 hashBlock;
@@ -1413,7 +1416,7 @@ uint64_t txFee = 0;
               }
               else ++inputs_errors;
 
-              if (msc_debug) fprintf(mp_fp, "vin=%d:%s\n", i, wtx.vin[i].ToString().c_str());
+              if (msc_debug_vin) fprintf(mp_fp, "vin=%d:%s\n", i, wtx.vin[i].ToString().c_str());
             } // end of inputs for loop
 
             txFee = inAll - outAll; // this is the fee paid to miners for this TX
@@ -1468,11 +1471,11 @@ uint64_t txFee = 0;
         int nRequired;
 
         // CScript is a std::vector
-        if (msc_debug) fprintf(mp_fp, "scriptPubKey: %s\n", wtx.vout[i].scriptPubKey.getHex().c_str());
+        if (msc_debug_script) fprintf(mp_fp, "scriptPubKey: %s\n", wtx.vout[i].scriptPubKey.getHex().c_str());
 
         if (ExtractDestinations(wtx.vout[i].scriptPubKey, type, vDest, nRequired))
         {
-          if (msc_debug) fprintf(mp_fp, " >> multisig: ");
+          if (msc_debug_script) fprintf(mp_fp, " >> multisig: ");
             BOOST_FOREACH(const CTxDestination &dest, vDest)
             {
             CBitcoinAddress address = CBitcoinAddress(dest);
@@ -1485,10 +1488,10 @@ uint64_t txFee = 0;
 
               // base_uint is a superclass of dest, size(), GetHex() is the same as ToString()
 //              fprintf(mp_fp, "%s size=%d (%s); ", address.ToString().c_str(), keyID.size(), keyID.GetHex().c_str());
-              if (msc_debug) fprintf(mp_fp, "%s ; ", address.ToString().c_str());
+              if (msc_debug_script) fprintf(mp_fp, "%s ; ", address.ToString().c_str());
 
             }
-          if (msc_debug) fprintf(mp_fp, "\n");
+          if (msc_debug_script) fprintf(mp_fp, "\n");
 
           // TODO: verify that we can handle multiple multisigs per tx
           wtx.vout[i].scriptPubKey.mscore_parse(multisig_script_data, false);
@@ -1723,18 +1726,18 @@ uint64_t txFee = 0;
           if (msc_debug3) fprintf(mp_fp, "Ending reference identification\n");
           if (msc_debug3) fprintf(mp_fp, "Final decision on reference identification is: %s\n", strReference.c_str());
 
-          if (msc_debug0) fprintf(mp_fp, "%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
+          if (msc_debug_parser) fprintf(mp_fp, "%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
           // multisig , Class B; get the data packets that are found here
           for (unsigned int k = 0; k<multisig_script_data.size();k++)
           {
-            if (msc_debug0) fprintf(mp_fp, "%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
+            if (msc_debug_parser) fprintf(mp_fp, "%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
             CPubKey key(ParseHex(multisig_script_data[k]));
             CKeyID keyID = key.GetID();
             string strAddress = CBitcoinAddress(keyID).ToString();
             char *c_addr_type = (char *)"";
             string strPacket;
 
-            if (msc_debug0) fprintf(mp_fp, "%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
+            if (msc_debug_parser) fprintf(mp_fp, "%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
             {
               // this is a data packet, must deobfuscate now
               vector<unsigned char>hash = ParseHex(strObfuscatedHashes[mdata_count+1]);      
@@ -1760,9 +1763,9 @@ uint64_t txFee = 0;
 
             if (!strPacket.empty())
             {
-              if (msc_debug) fprintf(mp_fp, "packet #%d: %s\n", mdata_count, strPacket.c_str());
+              if (msc_debug_parser) fprintf(mp_fp, "packet #%d: %s\n", mdata_count, strPacket.c_str());
             }
-          if (msc_debug0) fprintf(mp_fp, "%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
+          if (msc_debug_parser) fprintf(mp_fp, "%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
           }
 
           packet_size = mdata_count * (PACKET_SIZE - 1);
@@ -1772,14 +1775,14 @@ uint64_t txFee = 0;
             return -111;
           }
 
-          if (msc_debug0) fprintf(mp_fp, "%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
+          if (msc_debug_parser) fprintf(mp_fp, "%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
           } // end of if (fMultisig)
-          if (msc_debug0) fprintf(mp_fp, "%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
+          if (msc_debug_parser) fprintf(mp_fp, "%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
 
             // now decode mastercoin packets
             for (int m=0;m<mdata_count;m++)
             {
-              if (msc_debug0) fprintf(mp_fp, "m=%d: %s\n", m, HexStr(packets[m], PACKET_SIZE + packets[m], false).c_str());
+              if (msc_debug_parser) fprintf(mp_fp, "m=%d: %s\n", m, HexStr(packets[m], PACKET_SIZE + packets[m], false).c_str());
 
               // check to ensure the sequence numbers are sequential and begin with 01 !
               if (1+m != packets[m][0])
@@ -1929,10 +1932,6 @@ string strAddress = vstr[0];
 
   // ignoring TMSC for now...
   update_tally_map(strAddress, MASTERCOIN_CURRENCY_MSC, uValue, MONEY);
-
-#ifdef  MY_TMSC_HACK
-  update_tally_map(strAddress, MASTERCOIN_CURRENCY_TMSC, uValue, MONEY);
-#endif
 
   update_tally_map(strAddress, MASTERCOIN_CURRENCY_MSC, uSellReserved, SELLOFFER_RESERVE);
   update_tally_map(strAddress, MASTERCOIN_CURRENCY_MSC, uAcceptReserved, ACCEPT_RESERVE);
@@ -2425,7 +2424,11 @@ const bool bTestnet = TestNet();
   {
   // my old preseed way
 
-    nWaterlineBlock = PRE_GENESIS_BLOCK;  // the DEX block, using Zathras' msc_balances_290629.txt
+    nWaterlineBlock = GENESIS_BLOCK - 1;  // the DEX block, using Zathras' msc_balances_290629.txt
+
+#ifdef  MY_SP_HACK
+    nWaterlineBlock = MSC_SP_BLOCK-3;
+#endif
 
     if (bTestnet) nWaterlineBlock = SOME_TESTNET_BLOCK; //testnet3
 
