@@ -2398,8 +2398,8 @@ const bool bTestnet = TestNet();
   MPPersistencePath = GetDataDir() / "MP_persist";
   boost::filesystem::create_directories(MPPersistencePath);
 
-  // this is the height of the data included in the preseeds
-  static const int snapshotHeight = (POST_EXODUS_BLOCK - 1);
+  //no more preseed, so legacy code, setting to pre-genesis-block
+  static const int snapshotHeight = (GENESIS_BLOCK - 1);
   static const uint64_t snapshotDevMSC = 0;
 
   ++mastercoreInitialized;
