@@ -43,7 +43,7 @@
 
 #include <openssl/sha.h>
 
-#define MY_SP_HACK
+// #define MY_SP_HACK
 
 /* copied from 0.9.2, the one in 0.9.1 crashes on bad nTime input */
 #include <boost/date_time/posix_time/posix_time.hpp>
