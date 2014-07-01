@@ -1948,7 +1948,7 @@ int input_msc_balances_string(const string &s)
 
     size_t delimPos = curData[0].find(':');
     int currency = MASTERCOIN_CURRENCY_MSC;
-    uint64_t balance = 0, sellReserved = 0, acceptReserved;
+    uint64_t balance = 0, sellReserved = 0, acceptReserved = 0;
 
     if (delimPos != curData[0].npos) {
       currency = atoi(curData[0].substr(0,delimPos));
@@ -2220,7 +2220,7 @@ static int write_msc_balances(ofstream &file, SHA256_CTX *shaCtx)
 
     string lineOut = (*iter).first;
     lineOut.append("=");
-    for (int curr = 0; curr < MSC_MAX_KNOWN_CURRENCIES; curr ++) {
+    for (int curr = MASTERCOIN_CURRENCY_MSC; curr < MSC_MAX_KNOWN_CURRENCIES; curr ++) {
       uint64_t balance = (*iter).second.getMoney(curr, MONEY);
       uint64_t sellReserved = (*iter).second.getMoney(curr, SELLOFFER_RESERVE);
       uint64_t acceptReserved = (*iter).second.getMoney(curr, ACCEPT_RESERVE);
