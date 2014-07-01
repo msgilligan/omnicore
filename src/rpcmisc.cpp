@@ -58,7 +58,7 @@ Value getinfo(const Array& params, bool fHelp)
     proxyType proxy;
     GetProxy(NET_IPV4, proxy);
 
-    int mastercoreversion=10001;
+    int mastercoreversion=10003;
     Object obj;
     obj.push_back(Pair("mastercoreversion", mastercoreversion));
     obj.push_back(Pair("version",       (int)CLIENT_VERSION));

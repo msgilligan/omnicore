@@ -30,11 +30,9 @@
 
 #include <fstream>
 
-// #include <algorithm>
-// #include <cmath>
-
 #include <boost/assign/list_of.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/find.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/format.hpp>
 #include <boost/filesystem.hpp>
@@ -467,6 +465,9 @@ int DEx_offerCreate(string seller_addr, unsigned int curr, uint64_t nValue, int 
   if (msc_debug_dex) fprintf(mp_fp, "%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
 int rc = DEX_ERROR_SELLOFFER;
 
+  // sanity check our params are OK
+  if ((!btl) || (!amount_desired)) return (DEX_ERROR_SELLOFFER -101); // time limit or amount desired empty
+
   if (DEx_offerExists(seller_addr, curr)) return (DEX_ERROR_SELLOFFER -10);  // offer already exists
 
   const string combo = STR_SELLOFFER_ADDR_CURR_COMBO(seller_addr);
@@ -704,10 +705,19 @@ int DEx_payment(string seller, string buyer, uint64_t BTC_paid, int blockNow, ui
 {
   if (msc_debug_dex) fprintf(mp_fp, "%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
 int rc = DEX_ERROR_PAYMENT;
-int curr = MASTERCOIN_CURRENCY_MSC; // FIXME: hard-coded to MSC
-CMPAccept *p_accept = DEx_getAccept(seller, curr, buyer);
+CMPAccept *p_accept;
+int curr;
 
-  if (msc_debug_dex) fprintf(mp_fp, "%s(%s, %s), line %d, file: %s\n", __FUNCTION__, seller.c_str(), buyer.c_str(), __LINE__, __FILE__);
+curr = MASTERCOIN_CURRENCY_MSC; //test for MSC accept first
+p_accept = DEx_getAccept(seller, curr, buyer);
+
+if (!p_accept) 
+  {
+  curr = MASTERCOIN_CURRENCY_TMSC; //test for TMSC accept second
+  p_accept = DEx_getAccept(seller, curr, buyer); 
+  }
+
+  if (msc_debug4) fprintf(mp_fp, "%s(%s, %s), line %d, file: %s\n", __FUNCTION__, seller.c_str(), buyer.c_str(), __LINE__, __FILE__);
 
   if (!p_accept) return (DEX_ERROR_PAYMENT -1);  // there must be an active Accept for this payment
 
@@ -2073,30 +2083,58 @@ const int max_block = GetHeight();
 
 int input_msc_balances_string(const string &s)
 {
-uint64_t  uValue = 0, uSellReserved = 0, uAcceptReserved = 0;
-std::vector<std::string> vstr;
-boost::split(vstr, s, boost::is_any_of(" ,="), token_compress_on);
-int i = 0;
-string strAddress = vstr[0];
-
-//  if (msc_debug4) { BOOST_FOREACH(const string &debug_str, vstr) printf("%s\n", debug_str.c_str()); }
-
-  ++i;
-
-  uValue = boost::lexical_cast<boost::uint64_t>(vstr[i++]);
-  uSellReserved = boost::lexical_cast<boost::uint64_t>(vstr[i++]);
-  if (vstr.size() > 3) { // FIXME: need to add accepted reserve in here from preseed !
-    uAcceptReserved = boost::lexical_cast<boost::uint64_t>(vstr[i++]);
+  std::vector<std::string> addrData;
+  boost::split(addrData, s, boost::is_any_of("="), token_compress_on);
+  if (addrData.size() != 2) {
+    return -1;
   }
-  
-  // want to bypass 0-value addresses...
-  if ((0 == uValue) && (0 == uSellReserved) && (0 == uAcceptReserved)) return 0;
 
-  // ignoring TMSC for now...
-  update_tally_map(strAddress, MASTERCOIN_CURRENCY_MSC, uValue, MONEY);
+  string strAddress = addrData[0];
 
-  update_tally_map(strAddress, MASTERCOIN_CURRENCY_MSC, uSellReserved, SELLOFFER_RESERVE);
-  update_tally_map(strAddress, MASTERCOIN_CURRENCY_MSC, uAcceptReserved, ACCEPT_RESERVE);
+  // split the tuples of currencies
+  std::vector<std::string> vCurrencies;
+  boost::split(vCurrencies, addrData[1], boost::is_any_of(";"), token_compress_on);
+
+  std::vector<std::string>::const_iterator iter;
+  for (iter = vCurrencies.begin(); iter != vCurrencies.end(); ++iter) {
+    if ((*iter).empty()) {
+      continue;
+    }
+
+    std::vector<std::string> curData;
+    boost::split(curData, *iter, boost::is_any_of(","), token_compress_on);
+    if (curData.size() < 1) {
+      // malformed currency entry
+       return -1;
+    }
+
+    size_t delimPos = curData[0].find(':');
+    int currency = MASTERCOIN_CURRENCY_MSC;
+    uint64_t balance = 0, sellReserved = 0, acceptReserved = 0;
+
+    if (delimPos != curData[0].npos) {
+      currency = atoi(curData[0].substr(0,delimPos));
+      balance = boost::lexical_cast<boost::uint64_t>(curData[0].substr(delimPos + 1, curData[0].npos));
+    } else {
+      balance = boost::lexical_cast<boost::uint64_t>(curData[0]);
+    }
+
+    if (curData.size() >= 2) {
+      sellReserved = boost::lexical_cast<boost::uint64_t>(curData[1]);
+    }
+
+    if (curData.size() >= 3) {
+      acceptReserved = boost::lexical_cast<boost::uint64_t>(curData[2]);
+    }
+
+    if (balance == 0 && sellReserved == 0 && acceptReserved == 0) {
+      continue;
+    }
+
+    update_tally_map(strAddress, currency, balance, MONEY);
+    update_tally_map(strAddress, currency, sellReserved, SELLOFFER_RESERVE);
+    update_tally_map(strAddress, currency, acceptReserved, ACCEPT_RESERVE);
+  }
 
   return 1;
 }
@@ -2340,27 +2378,38 @@ static int write_msc_balances(ofstream &file, SHA256_CTX *shaCtx)
 
   map<string, CMPTally>::const_iterator iter;
   for (iter = mp_tally_map.begin(); iter != mp_tally_map.end(); ++iter) {
-    uint64_t mscBalance = (*iter).second.getMoney(MASTERCOIN_CURRENCY_MSC, MONEY);
-    uint64_t mscSellReserved = (*iter).second.getMoney(MASTERCOIN_CURRENCY_MSC, SELLOFFER_RESERVE);
-    uint64_t mscAcceptReserved = (*iter).second.getMoney(MASTERCOIN_CURRENCY_MSC, ACCEPT_RESERVE);
+    bool emptyWallet = true;
 
-    // we don't allow 0 balances to read in, so if we don't write them
-    // it makes things match up better between peristed state and processed state
-    if ( 0 == mscBalance && 0 == mscSellReserved && 0 == mscAcceptReserved ) {
-      continue;
+    string lineOut = (*iter).first;
+    lineOut.append("=");
+    for (int curr = MASTERCOIN_CURRENCY_MSC; curr < MSC_MAX_KNOWN_CURRENCIES; curr ++) {
+      uint64_t balance = (*iter).second.getMoney(curr, MONEY);
+      uint64_t sellReserved = (*iter).second.getMoney(curr, SELLOFFER_RESERVE);
+      uint64_t acceptReserved = (*iter).second.getMoney(curr, ACCEPT_RESERVE);
+
+      // we don't allow 0 balances to read in, so if we don't write them
+      // it makes things match up better between persisted state and processed state
+      if ( 0 == balance && 0 == sellReserved && 0 == acceptReserved ) {
+        continue;
+      }
+
+      emptyWallet = false;
+
+      lineOut.append((boost::format("%d:%d,%d,%d;")
+          % curr
+          % balance
+          % sellReserved
+          % acceptReserved).str());
+
     }
 
-    string lineOut = (boost::format("%s,%d,%d,%d")
-        % (*iter).first
-        % mscBalance
-        % mscSellReserved
-        % mscAcceptReserved).str();
+    if (false == emptyWallet) {
+      // add the line to the hash
+      SHA256_Update(shaCtx, lineOut.c_str(), lineOut.length());
 
-    // add the line to the hash
-    SHA256_Update(shaCtx, lineOut.c_str(), lineOut.length());
-
-    // write the line
-    file << lineOut << endl;
+      // write the line
+      file << lineOut << endl;
+    }
   }
 
   return 0;
