@@ -47,6 +47,8 @@
 
 #define MY_SP_HACK
 
+unsigned int global_NextPropertyId[0xF]= { 0, 3, 0x80000003, 0 };
+
 // #define DISABLE_LOG_FILE 
 static FILE *mp_fp = NULL;
 
@@ -1028,7 +1030,10 @@ public:
     case MSC_TYPE_CREATE_PROPERTY_FIXED:
     {
       const char *p = step2_sp();
+      if (!p) return (PKT_SP_ERROR -11);
       rc = step3_sp_fixed(p);
+
+      if (0 == rc) global_NextPropertyId[ecosystem]++;
 
       break;
     }
@@ -1036,7 +1041,10 @@ public:
     case MSC_TYPE_CREATE_PROPERTY_VARIABLE:
     {
       const char *p = step2_sp();
+      if (!p) return (PKT_SP_ERROR -12);
       rc = step3_sp_variable(p);
+
+      if (0 == rc) global_NextPropertyId[ecosystem]++;
 
       break;
     }
@@ -1103,10 +1111,16 @@ public:
  {
  const char *p = 11 + (char *)&pkt;
  std::vector<std::string>spstr;
-
-  printf("%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
+ unsigned int i;
+ unsigned int id;
 
   memcpy(&ecosystem, &pkt[4], 1);
+  fprintf(mp_fp, "\t       Ecosystem: %u\n", ecosystem);
+
+  // valid values are 1 & 2
+  if ((MASTERCOIN_CURRENCY_MSC != ecosystem) && (MASTERCOIN_CURRENCY_TMSC != ecosystem)) return NULL;
+
+  id = global_NextPropertyId[ecosystem];
 
   memcpy(&prop_type, &pkt[5], 2);
   swapByteOrder16(prop_type);
@@ -1114,19 +1128,23 @@ public:
   memcpy(&prev_prop_id, &pkt[7], 4);
   swapByteOrder32(prev_prop_id);
 
-  fprintf(mp_fp, "\t       Ecosystem: %u\n", ecosystem);
+  fprintf(mp_fp, "\t     Property ID: %u\n", id);
   fprintf(mp_fp, "\t   Property type: %u (%s)\n", prop_type, c_strPropertyType(prop_type));
 
-  for (unsigned int i = 0; i<5;i++)
+  for (i = 0; i<5; i++)
   {
     spstr.push_back(std::string(p));
     p += spstr.back().size() + 1;
   }
 
-  for (unsigned int i = 0; i<spstr.size();i++)
-  {
-    fprintf(mp_fp, "\t       %s\n", spstr[i].c_str());
-  }
+  i = 0;
+  fprintf(mp_fp, "\t        Category: %s\n", spstr[i++].c_str());
+  fprintf(mp_fp, "\t     Subcategory: %s\n", spstr[i++].c_str());
+  fprintf(mp_fp, "\t            Name: %s\n", spstr[i++].c_str());
+  fprintf(mp_fp, "\t             URL: %s\n", spstr[i++].c_str());
+  fprintf(mp_fp, "\t            Data: %s\n", spstr[i++].c_str());
+
+  if ((MASTERCOIN_CURRENCY_MSC == ecosystem) && (MSC_SP_BLOCK > block)) return NULL;
 
   return p;
  }
@@ -1141,13 +1159,14 @@ public:
   if (MSC_PROPERTY_TYPE_INDIVISIBLE == prop_type)
   {
     fprintf(mp_fp, "\t           value: %lu\n", nValue);
+    if (0 == nValue) return (PKT_SP_ERROR -101);
   }
   else
   if (MSC_PROPERTY_TYPE_DIVISIBLE == prop_type)
   {
     fprintf(mp_fp, "\t           value: %lu.%08lu\n", nValue/COIN, nValue%COIN);
+    if (0 == nValue) return (PKT_SP_ERROR -102);
   }
-  else return (PKT_SP_ERROR -5);
 
   return 0;
  }
@@ -1172,13 +1191,14 @@ public:
   if (MSC_PROPERTY_TYPE_INDIVISIBLE == prop_type)
   {
     fprintf(mp_fp, "\t           value: %lu\n", nValue);
+    if (0 == nValue) return (PKT_SP_ERROR -201);
   }
   else
   if (MSC_PROPERTY_TYPE_DIVISIBLE == prop_type)
   {
     fprintf(mp_fp, "\t           value: %lu.%08lu\n", nValue/COIN, nValue%COIN);
+    if (0 == nValue) return (PKT_SP_ERROR -202);
   }
-  else return (PKT_SP_ERROR -5);
 
   memcpy(&deadline, p, 8);
   swapByteOrder64(deadline);
@@ -2564,6 +2584,7 @@ const bool bTestnet = TestNet();
 
 #ifdef  MY_SP_HACK
     nWaterlineBlock = MSC_SP_BLOCK-3;
+    nWaterlineBlock = MSC_DEX_BLOCK-3;
 #endif
 
     if (bTestnet) nWaterlineBlock = SOME_TESTNET_BLOCK; //testnet3
