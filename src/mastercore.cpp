@@ -47,6 +47,19 @@
 
 #define MY_SP_HACK
 
+/* copied from 0.9.2, the one in 0.9.1 crashes on bad nTime input */
+#include <boost/date_time/posix_time/posix_time.hpp>
+#define DateTimeStrFormat DateTimeStrFormat_092
+static std::string DateTimeStrFormat_092(const char* pszFormat, int64_t nTime)
+{
+    // std::locale takes ownership of the pointer
+    std::locale loc(std::locale::classic(), new boost::posix_time::time_facet(pszFormat));
+    std::stringstream ss;
+    ss.imbue(loc);
+    ss << boost::posix_time::from_time_t(nTime);
+    return ss.str();
+}
+
 unsigned int global_NextPropertyId[0xF]= { 0, 3, 0x80000003, 0 };
 
 // #define DISABLE_LOG_FILE 
@@ -83,7 +96,7 @@ int msc_debug6 = 0;
 int msc_debug_parser= 0;
 int msc_debug_vin   = 0;
 int msc_debug_script= 0;
-int msc_debug_dex   = 1;
+int msc_debug_dex   = 0;
 int msc_debug_send  = 1;
 int msc_debug_spec  = 1;
 int msc_debug_exo   = 0;
@@ -113,31 +126,25 @@ static int GetHeight()
     return chainActive.Height();
 }
 
-char *c_strMastercoinCurrency(unsigned int i)
+string strMPCurrency(unsigned int i)
 {
+string str = "*unknown*";
+
   // test user-token
   if (0x80000000 & i)
   {
-    // TODO: extend it to general case currencies
-    switch (0x7FFFFFFF & i)
-    {
-      case 0: return ((char *)"test user token 0");
-      case 1: return ((char *)"test user token 1");
-      case 2: return ((char *)"test user token 2");
-      case 3: return ((char *)"test user token 3");
-      case 4: return ((char *)"test user token 4");
-      default: return ((char *)"* unknown test currency *");
-    }
+    str = strprintf("Test user token: %d : 0x%08X", 0x7FFFFFFF & i, i);
   }
   else
   switch (i)
   {
-    case 0: return ((char *)"BTC");
-    case MASTERCOIN_CURRENCY_MSC: return ((char *)"MSC");
-    case MASTERCOIN_CURRENCY_TMSC: return ((char *)"TMSC");
-    case MASTERCOIN_CURRENCY_SP1: return ((char *)"SP");  // first SP MaidSafe coin -- name will be pulled from the protocol of course, TODO
-    default: return ((char *)"* unknown currency *");
+    case 0: str = "BTC"; break;
+    case MASTERCOIN_CURRENCY_MSC: str = "MSC"; break;
+    case MASTERCOIN_CURRENCY_TMSC: str = "TMSC"; break;
+    default: str = strprintf("SP token: %d", i);
   }
+
+  return str;
 }
 
 char *c_strMastercoinType(int i)
@@ -464,7 +471,7 @@ int rc = DEX_ERROR_SELLOFFER;
 
   const string combo = STR_SELLOFFER_ADDR_CURR_COMBO(seller_addr);
 
-  if (msc_debug4)
+  if (msc_debug_dex)
    fprintf(mp_fp, "%s(%s|%s), nValue=%lu), line %d, file: %s\n", __FUNCTION__, seller_addr.c_str(), combo.c_str(), nValue, __LINE__, __FILE__);
 
   const uint64_t balanceReallyAvailable = getMPbalance(seller_addr, curr, MONEY);
@@ -519,7 +526,7 @@ const uint64_t amount = getMPbalance(seller_addr, curr, SELLOFFER_RESERVE);
   // delete the offer
   my_offers.erase(my_it);
 
-  if (msc_debug4)
+  if (msc_debug_dex)
    fprintf(mp_fp, "%s(%s|%s), line %d, file: %s\n", __FUNCTION__, seller_addr.c_str(), combo.c_str(), __LINE__, __FILE__);
 
   return 0;
@@ -700,7 +707,7 @@ int rc = DEX_ERROR_PAYMENT;
 int curr = MASTERCOIN_CURRENCY_MSC; // FIXME: hard-coded to MSC
 CMPAccept *p_accept = DEx_getAccept(seller, curr, buyer);
 
-  if (msc_debug4) fprintf(mp_fp, "%s(%s, %s), line %d, file: %s\n", __FUNCTION__, seller.c_str(), buyer.c_str(), __LINE__, __FILE__);
+  if (msc_debug_dex) fprintf(mp_fp, "%s(%s, %s), line %d, file: %s\n", __FUNCTION__, seller.c_str(), buyer.c_str(), __LINE__, __FILE__);
 
   if (!p_accept) return (DEX_ERROR_PAYMENT -1);  // there must be an active Accept for this payment
 
@@ -1100,7 +1107,7 @@ public:
     return (PKT_ERROR -2);
   }
 
-  fprintf(mp_fp, "\t        currency: %u (%s)\n", currency, c_strMastercoinCurrency(currency));
+  fprintf(mp_fp, "\t        currency: %u (%s)\n", currency, strMPCurrency(currency).c_str());
   fprintf(mp_fp, "\t           value: %lu.%08lu\n", nValue/COIN, nValue%COIN);
 
   return (type);
@@ -1128,7 +1135,7 @@ public:
   memcpy(&prev_prop_id, &pkt[7], 4);
   swapByteOrder32(prev_prop_id);
 
-  fprintf(mp_fp, "\t     Property ID: %u\n", id);
+  fprintf(mp_fp, "\t     Property ID: %u (%s)\n", id, strMPCurrency(id).c_str());
   fprintf(mp_fp, "\t   Property type: %u (%s)\n", prop_type, c_strPropertyType(prop_type));
 
   for (i = 0; i<5; i++)
@@ -1182,7 +1189,7 @@ public:
   swapByteOrder32(currency);
   p += 4;
 
-  fprintf(mp_fp, "\t        currency: %u (%s)\n", currency, c_strMastercoinCurrency(currency));
+  fprintf(mp_fp, "\t        currency: %u (%s)\n", currency, strMPCurrency(currency).c_str());
 
   memcpy(&nValue, p, 8);
   swapByteOrder64(nValue);
@@ -1203,6 +1210,7 @@ public:
   memcpy(&deadline, p, 8);
   swapByteOrder64(deadline);
   p += 8;
+  fprintf(mp_fp, "\t        Deadline: %s (%lX)\n", DateTimeStrFormat("%Y-%m-%d %H:%M:%S", deadline).c_str(), deadline);
 
   memcpy(&early_bird, p++, 1);
   fprintf(mp_fp, "\tEarly Bird Bonus: %u\n", early_bird);
@@ -1797,12 +1805,10 @@ uint64_t txFee = 0;
                   const string strAddress = CBitcoinAddress(dest).ToString();
 
                     if (exodus == strAddress) continue;
-//                    if (strSender == strAddress) continue;
                     fprintf(mp_fp, "payment #%d %s %11.8lf\n", ++count, strAddress.c_str(), (double)wtx.vout[i].nValue/(double)COIN);
 
                     // check everything & pay BTC for the currency we are buying here...
                     DEx_payment(strAddress, strSender, wtx.vout[i].nValue, nBlock);
-//                    return 0;
                   }
                 }
               }
@@ -2585,6 +2591,7 @@ const bool bTestnet = TestNet();
 #ifdef  MY_SP_HACK
     nWaterlineBlock = MSC_SP_BLOCK-3;
     nWaterlineBlock = MSC_DEX_BLOCK-3;
+//    nWaterlineBlock = 296163 - 3; // bad Deadline
 #endif
 
     if (bTestnet) nWaterlineBlock = SOME_TESTNET_BLOCK; //testnet3
@@ -2990,7 +2997,7 @@ Status status;
   {
     status = pdb->Put(writeoptions, key, value);
     ++nWritten;
-    fprintf(mp_fp, "%s(): %s, line %d, file: %s\n", __FUNCTION__, status.ToString().c_str(), __LINE__, __FILE__);
+    if (msc_debug1) fprintf(mp_fp, "%s(): %s, line %d, file: %s\n", __FUNCTION__, status.ToString().c_str(), __LINE__, __FILE__);
   }
 }
 
