@@ -71,7 +71,7 @@ static uint64_t exodus_balance;
 static boost::filesystem::path MPPersistencePath;
 
 int msc_debug0 = 1;
-int msc_debug1 = 1;
+int msc_debug1 = 0;
 int msc_debug2 = 1;
 int msc_debug3 = 0;
 int msc_debug4 = 1;
@@ -152,6 +152,17 @@ char *c_strMastercoinType(int i)
     case MSC_TYPE_PROMOTE_PROPERTY: return ((char *)"Promote Property");
     default: return ((char *)"* unknown type *");
   }
+}
+
+char *c_strPropertyType(int i)
+{
+  switch (i)
+  {
+    case MSC_PROPERTY_TYPE_DIVISIBLE: return (char *) "divisble";
+    case MSC_PROPERTY_TYPE_INDIVISIBLE: return (char *) "indivisble";
+  }
+
+  return (char *) "*** property type error ***";
 }
 
 void swapByteOrder16(unsigned short& us)
@@ -793,13 +804,18 @@ private:
   int block;
   unsigned int tx_idx;  // tx # within the block, 0-based
   int pkt_size;
-  unsigned char pkt[MAX_PACKETS * PACKET_SIZE];
+  unsigned char pkt[1 + MAX_PACKETS * PACKET_SIZE];
   uint64_t nValue;
   int multi;  // Class A = 0, Class B = 1
   uint64_t tx_fee_paid;
   unsigned int type, currency;
   unsigned short version; // = MP_TX_PKT_V0;
   uint64_t nNewValue;
+
+// SP additions, perhaps a new class or a union is needed
+  unsigned char ecosystem;
+  unsigned short prop_type;
+  unsigned int prev_prop_id;
 
 public:
 //  mutable CCriticalSection cs_msc;  // TODO: need to refactor first...
@@ -815,6 +831,32 @@ public:
 
   uint64_t getAmount() const { return nValue; }
   uint64_t getNewAmount() const { return nNewValue; }
+
+  void SetNull()
+  {
+    currency = 0;
+    type = 0;
+    txid = 0;
+    tx_idx = 0;  // tx # within the block, 0-based
+    nValue = 0;
+    nNewValue = 0;
+    tx_fee_paid = 0;
+    block = -1;
+    pkt_size = 0;
+    sender.erase();
+    receiver.erase();
+
+    ecosystem = 0;
+    prop_type = 0;
+    prev_prop_id = 0;
+
+    memset(&pkt, 0, sizeof(pkt));
+  }
+
+  CMPTransaction()
+  {
+    SetNull();
+  }
 
  // the 31-byte packet & the packet #
  // int interpretPacket(int blocknow, unsigned char pkt[], int size)
@@ -841,7 +883,7 @@ public:
  unsigned char blocktimelimit, subaction = 0;
  int rc = PKT_ERROR;
 
-  if (0>parse()) return -98765;
+  if (0>step1()) return -98765;
 
   if ((obj_o) && (MSC_TYPE_TRADE_OFFER != type)) return -777; // can't fill in the Offer object !
 
@@ -856,6 +898,7 @@ public:
   switch(type)
   {
     case MSC_TYPE_SIMPLE_SEND:
+      step2_value();
       if (sender.empty()) ++InvalidCount_per_spec;
       // special case: if can't find the receiver -- assume sending to itself !
       // may also be true for BTC payments........
@@ -874,6 +917,8 @@ public:
     {
     enum ActionTypes { INVALID = 0, NEW = 1, UPDATE = 2, CANCEL = 3 };
     const char * const subaction_name[] = { "empty", "new", "update", "cancel" };
+
+      step2_value();
 
       memcpy(&amount_desired, &pkt[16], 8);
       memcpy(&blocktimelimit, &pkt[24], 1);
@@ -975,17 +1020,26 @@ public:
     } // end of TRADE_OFFER
 
     case MSC_TYPE_ACCEPT_OFFER_BTC:
+      step2_value();
       // the min fee spec requirement is checked in the following function
       rc = DEx_acceptCreate(sender, receiver, currency, nValue, block, tx_fee_paid, &nNewValue);
       break;
 
     case MSC_TYPE_CREATE_PROPERTY_FIXED:
+    {
+      const char *p = step2_sp();
+      rc = step3_sp_fixed(p);
 
       break;
+    }
 
     case MSC_TYPE_CREATE_PROPERTY_VARIABLE:
+    {
+      const char *p = step2_sp();
+      rc = step3_sp_variable(p);
 
       break;
+    }
 
     default:
 
@@ -995,7 +1049,8 @@ public:
   return rc;
  }
 
- int parse()
+ // initial packet interpret step
+ int step1()
  {
   if (PACKET_SIZE_CLASS_A > pkt_size)  // class A could be 19 bytes
   {
@@ -1011,13 +1066,24 @@ public:
   pkt[0]=0; pkt[1]=0;
   
   memcpy(&type, &pkt[0], 4);
-  memcpy(&currency, &pkt[4], 4);
-  memcpy(&nValue, &pkt[8], 8);
 
   // FIXME: only do swaps for little-endian system(s) !
   swapByteOrder32(type);
-  swapByteOrder32(currency);
+
+  fprintf(mp_fp, "version: %d, Class %s\n", version, !multi ? "A":"B");
+  fprintf(mp_fp, "\t            type: %u (%s)\n", type, c_strMastercoinType(type));
+
+  return (type);
+ }
+
+ // extract Value for certain types of packets
+ int step2_value()
+ {
+  memcpy(&nValue, &pkt[8], 8);
   swapByteOrder64(nValue);
+
+  memcpy(&currency, &pkt[4], 4);
+  swapByteOrder32(currency);
 
   if (ignore_all_but_MSC)
   if (currency != MASTERCOIN_CURRENCY_MSC)
@@ -1026,36 +1092,106 @@ public:
     return (PKT_ERROR -2);
   }
 
-  fprintf(mp_fp, "version: %d, Class %s\n", version, !multi ? "A":"B");
-
-  fprintf(mp_fp, "\t            type: %u (%s)\n", type, c_strMastercoinType(type));
   fprintf(mp_fp, "\t        currency: %u (%s)\n", currency, c_strMastercoinCurrency(currency));
   fprintf(mp_fp, "\t           value: %lu.%08lu\n", nValue/COIN, nValue%COIN);
 
   return (type);
  }
 
-  void SetNull()
-  {
-    currency = 0;
-    type = 0;
-    txid = 0;
-    tx_idx = 0;  // tx # within the block, 0-based
-    nValue = 0;
-    nNewValue = 0;
-    tx_fee_paid = 0;
-    block = -1;
-    pkt_size = 0;
-    sender.erase();
-    receiver.erase();
+ // extract Smart Property data
+ const char *step2_sp()
+ {
+ const char *p = 11 + (char *)&pkt;
+ std::vector<std::string>spstr;
 
-    memset(&pkt, 0, sizeof(pkt));
+  printf("%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
+
+  memcpy(&ecosystem, &pkt[4], 1);
+
+  memcpy(&prop_type, &pkt[5], 2);
+  swapByteOrder16(prop_type);
+
+  memcpy(&prev_prop_id, &pkt[7], 4);
+  swapByteOrder32(prev_prop_id);
+
+  fprintf(mp_fp, "\t       Ecosystem: %u\n", ecosystem);
+  fprintf(mp_fp, "\t   Property type: %u (%s)\n", prop_type, c_strPropertyType(prop_type));
+
+  for (unsigned int i = 0; i<5;i++)
+  {
+    spstr.push_back(std::string(p));
+    p += spstr.back().size() + 1;
   }
 
-  CMPTransaction()
+  for (unsigned int i = 0; i<spstr.size();i++)
   {
-    SetNull();
+    fprintf(mp_fp, "\t       %s\n", spstr[i].c_str());
   }
+
+  return p;
+ }
+
+ int step3_sp_fixed(const char *p)
+ {
+  if (!p) return (PKT_SP_ERROR -1);
+
+  memcpy(&nValue, p, 8);
+  swapByteOrder64(nValue);
+
+  if (MSC_PROPERTY_TYPE_INDIVISIBLE == prop_type)
+  {
+    fprintf(mp_fp, "\t           value: %lu\n", nValue);
+  }
+  else
+  if (MSC_PROPERTY_TYPE_DIVISIBLE == prop_type)
+  {
+    fprintf(mp_fp, "\t           value: %lu.%08lu\n", nValue/COIN, nValue%COIN);
+  }
+  else return (PKT_SP_ERROR -5);
+
+  return 0;
+ }
+
+ int step3_sp_variable(const char *p)
+ {
+ uint64_t deadline = 0;
+ unsigned char early_bird, percentage;
+
+  if (!p) return (PKT_SP_ERROR -1);
+
+  memcpy(&currency, p, 4);
+  swapByteOrder32(currency);
+  p += 4;
+
+  fprintf(mp_fp, "\t        currency: %u (%s)\n", currency, c_strMastercoinCurrency(currency));
+
+  memcpy(&nValue, p, 8);
+  swapByteOrder64(nValue);
+  p += 8;
+
+  if (MSC_PROPERTY_TYPE_INDIVISIBLE == prop_type)
+  {
+    fprintf(mp_fp, "\t           value: %lu\n", nValue);
+  }
+  else
+  if (MSC_PROPERTY_TYPE_DIVISIBLE == prop_type)
+  {
+    fprintf(mp_fp, "\t           value: %lu.%08lu\n", nValue/COIN, nValue%COIN);
+  }
+  else return (PKT_SP_ERROR -5);
+
+  memcpy(&deadline, p, 8);
+  swapByteOrder64(deadline);
+  p += 8;
+
+  memcpy(&early_bird, p++, 1);
+  fprintf(mp_fp, "\tEarly Bird Bonus: %u\n", early_bird);
+
+  memcpy(&percentage, p++, 1);
+  fprintf(mp_fp, "\t      Percentage: %u\n", percentage);
+
+  return 0;
+ }
 
   void set(const uint256 &t, int b, unsigned int idx, uint64_t txf = 0)
   {
@@ -3027,7 +3163,7 @@ Value gettransaction_MP(const Array& params, bool fHelp)
                 if (0 == parseTransaction(wtx, 0, 0, &mp_obj))
                 {
                         // OK, a valid MP transaction so far
-                        if (0<=mp_obj.parse())
+                        if (0<=mp_obj.step1())
                         {
                                 isMPTx = true;
                                 MPTxType = mp_obj.getTypeString();
@@ -3188,7 +3324,7 @@ bool addressFilter;
                 if (0 == parseTransaction(*pwtx, 0, 0, &mp_obj))
                 {
                         // OK, a valid MP transaction so far
-                        if (0<=mp_obj.parse())
+                        if (0<=mp_obj.step1())
                         {
                                 isMPTx = true;
                                 MPTxType = mp_obj.getTypeString();
