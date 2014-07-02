@@ -94,7 +94,7 @@ int msc_debug6 = 0;
 int msc_debug_parser= 0;
 int msc_debug_vin   = 0;
 int msc_debug_script= 0;
-int msc_debug_dex   = 0;
+int msc_debug_dex   = 1;
 int msc_debug_send  = 1;
 int msc_debug_spec  = 1;
 int msc_debug_exo   = 0;
@@ -165,8 +165,8 @@ char *c_strPropertyType(int i)
 {
   switch (i)
   {
-    case MSC_PROPERTY_TYPE_DIVISIBLE: return (char *) "divisble";
-    case MSC_PROPERTY_TYPE_INDIVISIBLE: return (char *) "indivisble";
+    case MSC_PROPERTY_TYPE_DIVISIBLE: return (char *) "divisible";
+    case MSC_PROPERTY_TYPE_INDIVISIBLE: return (char *) "indivisible";
   }
 
   return (char *) "*** property type error ***";
@@ -231,7 +231,7 @@ public:
     if (msc_debug4) fprintf(mp_fp, "%s(%lu): %s , line %d, file: %s\n", __FUNCTION__, a, txid.GetHex().c_str(), __LINE__, __FILE__);
   }
 
-  void set(uint64_t d, uint64_t fee, unsigned char btl, unsigned char suba)
+  void Set(uint64_t d, uint64_t fee, unsigned char btl, unsigned char suba)
   {
     BTC_desired_original = d;
     min_fee = fee;
@@ -349,13 +349,101 @@ public:
 
 };  // end of CMPAccept class
 
+class CMPSP
+{
+private:
+  unsigned int type;  // TX type
+
+// SP additions, perhaps a new class or a union is needed
+  unsigned char ecosystem;
+  unsigned short prop_type;
+  unsigned int prev_prop_id;
+
+  char category[SP_STRING_FIELD_LEN];
+  char subcategory[SP_STRING_FIELD_LEN];
+  char name[SP_STRING_FIELD_LEN];
+  char url[SP_STRING_FIELD_LEN];
+  char data[SP_STRING_FIELD_LEN];
+
+  uint64_t nValue;
+
+  unsigned int currency_desired;
+
+  uint64_t deadline;
+  unsigned char early_bird;
+  unsigned char percentage;
+
+public:
+  void SetNull()
+  {
+    ecosystem = 0;
+    prop_type = 0;
+    prev_prop_id = 0;
+    nValue = 0;
+    currency_desired = 0;
+    deadline = 0;
+    early_bird = 0;
+    percentage = 0;
+
+    memset(&category, 0, sizeof(category));
+    memset(&subcategory, 0, sizeof(subcategory));
+    memset(&name, 0, sizeof(name));
+    memset(&url, 0, sizeof(url));
+    memset(&data, 0, sizeof(data));
+  }
+
+  CMPSP(char *c, char *s, char *n, char *u, char *d)
+  {
+    printf("%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
+    SetNull();
+    Set(c, s, n, u, d);
+  }
+
+  const string getName() const { return name; }
+  const string getCategory() const { return category; }
+  const string getSubcategory() const { return subcategory; }
+  const string getURL() const { return url; }
+  const string getData() const { return data; }
+
+  uint64_t getValue() const { return nValue; }
+  uint64_t getDeadline() const { return deadline; }
+
+  void Set(char *c, char *s, char *n, char *u, char *d)
+  {
+    strncpy(category, c, sizeof(category)-1);
+    strncpy(subcategory, s, sizeof(subcategory)-1);
+    strncpy(name, n, sizeof(name)-1);
+    strncpy(url, u, sizeof(url)-1);
+    strncpy(data, d, sizeof(data)-1);
+  }
+
+  void print()
+  {
+    printf("%s/%s/%s, %s %s\n",
+     getCategory().c_str(), getSubcategory().c_str(), getName().c_str(), getURL().c_str(), getData().c_str());
+  }
+
+};  // end of CMPSP class
+
 CCriticalSection cs_tally;
 
 static map<string, CMPOffer> my_offers;
 static map<string, CMPAccept> my_accepts;
+static map<unsigned int, CMPSP> my_sps;
 
 // this is the master list of all amounts for all addresses for all currencies, map is sorted by Bitcoin address
 map<string, CMPTally> mp_tally_map;
+
+// getOffer may replace DEx_offerExists() in the near future
+// TODO: locks are needed around map's insert & erase
+CMPSP *getSP(unsigned int currency)
+{
+map<unsigned int, CMPSP>::iterator my_it = my_sps.find(currency);
+
+  if (my_it != my_sps.end()) return &(my_it->second);
+
+  return (CMPSP *) NULL;
+}
 
 // look at balance for an address
 uint64_t getMPbalance(const string &Address, unsigned int currency, TallyType ttype)
@@ -711,13 +799,13 @@ int curr;
 curr = MASTERCOIN_CURRENCY_MSC; //test for MSC accept first
 p_accept = DEx_getAccept(seller, curr, buyer);
 
-if (!p_accept) 
+  if (!p_accept) 
   {
-  curr = MASTERCOIN_CURRENCY_TMSC; //test for TMSC accept second
-  p_accept = DEx_getAccept(seller, curr, buyer); 
+    curr = MASTERCOIN_CURRENCY_TMSC; //test for TMSC accept second
+    p_accept = DEx_getAccept(seller, curr, buyer); 
   }
 
-  if (msc_debug4) fprintf(mp_fp, "%s(%s, %s), line %d, file: %s\n", __FUNCTION__, seller.c_str(), buyer.c_str(), __LINE__, __FILE__);
+  if (msc_debug_dex) fprintf(mp_fp, "%s(%s, %s), line %d, file: %s\n", __FUNCTION__, seller.c_str(), buyer.c_str(), __LINE__, __FILE__);
 
   if (!p_accept) return (DEX_ERROR_PAYMENT -1);  // there must be an active Accept for this payment
 
@@ -836,6 +924,12 @@ private:
   unsigned short prop_type;
   unsigned int prev_prop_id;
 
+  char category[SP_STRING_FIELD_LEN];
+  char subcategory[SP_STRING_FIELD_LEN];
+  char name[SP_STRING_FIELD_LEN];
+  char url[SP_STRING_FIELD_LEN];
+  char data[SP_STRING_FIELD_LEN];
+
 public:
 //  mutable CCriticalSection cs_msc;  // TODO: need to refactor first...
 
@@ -870,6 +964,12 @@ public:
     prev_prop_id = 0;
 
     memset(&pkt, 0, sizeof(pkt));
+
+    memset(&category, 0, sizeof(category));
+    memset(&subcategory, 0, sizeof(subcategory));
+    memset(&name, 0, sizeof(name));
+    memset(&url, 0, sizeof(url));
+    memset(&data, 0, sizeof(data));
   }
 
   CMPTransaction()
@@ -906,18 +1006,14 @@ public:
 
   if ((obj_o) && (MSC_TYPE_TRADE_OFFER != type)) return -777; // can't fill in the Offer object !
 
-  if (MASTERCOIN_CURRENCY_TMSC != currency)
-  {
-    // block height checks, for instance DEX is only available on MSC starting with block 290630
-    if ((MSC_TYPE_SIMPLE_SEND != type) && (MSC_DEX_BLOCK > block)) return -88888;
-  }
-
   // further processing for complex types
   // TODO: version may play a role here !
   switch(type)
   {
     case MSC_TYPE_SIMPLE_SEND:
-      step2_value();
+      rc = step2_value();
+      if (0>rc) return rc;
+
       if (sender.empty()) ++InvalidCount_per_spec;
       // special case: if can't find the receiver -- assume sending to itself !
       // may also be true for BTC payments........
@@ -937,7 +1033,8 @@ public:
     enum ActionTypes { INVALID = 0, NEW = 1, UPDATE = 2, CANCEL = 3 };
     const char * const subaction_name[] = { "empty", "new", "update", "cancel" };
 
-      step2_value();
+      rc = step2_value();
+      if (0>rc) return rc;
 
       memcpy(&amount_desired, &pkt[16], 8);
       memcpy(&blocktimelimit, &pkt[24], 1);
@@ -955,7 +1052,7 @@ public:
 
       if (obj_o)
       {
-        obj_o->set(amount_desired, min_fee, blocktimelimit, subaction);
+        obj_o->Set(amount_desired, min_fee, blocktimelimit, subaction);
         return PKT_RETURN_OFFER;
       }
 
@@ -1039,7 +1136,9 @@ public:
     } // end of TRADE_OFFER
 
     case MSC_TYPE_ACCEPT_OFFER_BTC:
-      step2_value();
+      rc = step2_value();
+      if (0>rc) return rc;
+
       // the min fee spec requirement is checked in the following function
       rc = DEx_acceptCreate(sender, receiver, currency, nValue, block, tx_fee_paid, &nNewValue);
       break;
@@ -1048,9 +1147,20 @@ public:
     {
       const char *p = step2_sp();
       if (!p) return (PKT_SP_ERROR -11);
+
       rc = step3_sp_fixed(p);
 
-      if (0 == rc) global_NextPropertyId[ecosystem]++;
+      if (0 == rc)
+      {
+//        if (NULL == getSP(currency))
+        {
+        const unsigned int id = global_NextPropertyId[ecosystem];
+
+          my_sps.insert(std::make_pair(id, CMPSP((char*)category, (char*)subcategory, (char*)name, (char*)url, (char*)data)));
+
+          global_NextPropertyId[ecosystem]++;
+        }
+      }
 
       break;
     }
@@ -1059,9 +1169,13 @@ public:
     {
       const char *p = step2_sp();
       if (!p) return (PKT_SP_ERROR -12);
+
       rc = step3_sp_variable(p);
 
-      if (0 == rc) global_NextPropertyId[ecosystem]++;
+      if (0 == rc)
+      {
+        global_NextPropertyId[ecosystem]++;
+      }
 
       break;
     }
@@ -1110,6 +1224,15 @@ public:
   memcpy(&currency, &pkt[4], 4);
   swapByteOrder32(currency);
 
+  fprintf(mp_fp, "\t        currency: %u (%s)\n", currency, strMPCurrency(currency).c_str());
+  fprintf(mp_fp, "\t           value: %lu.%08lu\n", nValue/COIN, nValue%COIN);
+
+  if (MASTERCOIN_CURRENCY_TMSC != currency)
+  {
+    // block height checks, for instance DEX is only available on MSC starting with block 290630
+    if ((MSC_TYPE_SIMPLE_SEND != type) && (MSC_DEX_BLOCK > block)) return -88888;
+  }
+
   if (ignore_all_but_MSC)
   if (currency != MASTERCOIN_CURRENCY_MSC)
   {
@@ -1117,10 +1240,7 @@ public:
     return (PKT_ERROR -2);
   }
 
-  fprintf(mp_fp, "\t        currency: %u (%s)\n", currency, strMPCurrency(currency).c_str());
-  fprintf(mp_fp, "\t           value: %lu.%08lu\n", nValue/COIN, nValue%COIN);
-
-  return (type);
+  return 0;
  }
 
  // extract Smart Property data
@@ -1147,6 +1267,7 @@ public:
 
   fprintf(mp_fp, "\t     Property ID: %u (%s)\n", id, strMPCurrency(id).c_str());
   fprintf(mp_fp, "\t   Property type: %u (%s)\n", prop_type, c_strPropertyType(prop_type));
+  fprintf(mp_fp, "\tPrev Property ID: %u\n", prev_prop_id);
 
   for (i = 0; i<5; i++)
   {
@@ -1155,11 +1276,17 @@ public:
   }
 
   i = 0;
-  fprintf(mp_fp, "\t        Category: %s\n", spstr[i++].c_str());
-  fprintf(mp_fp, "\t     Subcategory: %s\n", spstr[i++].c_str());
-  fprintf(mp_fp, "\t            Name: %s\n", spstr[i++].c_str());
-  fprintf(mp_fp, "\t             URL: %s\n", spstr[i++].c_str());
-  fprintf(mp_fp, "\t            Data: %s\n", spstr[i++].c_str());
+  memcpy(category, spstr[i++].c_str(), sizeof(category));
+  memcpy(subcategory, spstr[i++].c_str(), sizeof(subcategory));
+  memcpy(name, spstr[i++].c_str(), sizeof(name));
+  memcpy(url, spstr[i++].c_str(), sizeof(url));
+  memcpy(data, spstr[i++].c_str(), sizeof(data));
+
+  fprintf(mp_fp, "\t        Category: %s\n", category);
+  fprintf(mp_fp, "\t     Subcategory: %s\n", subcategory);
+  fprintf(mp_fp, "\t            Name: %s\n", name);
+  fprintf(mp_fp, "\t             URL: %s\n", url);
+  fprintf(mp_fp, "\t            Data: %s\n", data);
 
   if ((MASTERCOIN_CURRENCY_MSC == ecosystem) && (MSC_SP_BLOCK > block)) return NULL;
 
@@ -1195,7 +1322,7 @@ public:
 
   if (!p) return (PKT_SP_ERROR -1);
 
-  memcpy(&currency, p, 4);
+  memcpy(&currency, p, 4);  // currency desired
   swapByteOrder32(currency);
   p += 4;
 
@@ -1231,14 +1358,14 @@ public:
   return 0;
  }
 
-  void set(const uint256 &t, int b, unsigned int idx, uint64_t txf = 0)
+  void Set(const uint256 &t, int b, unsigned int idx, uint64_t txf = 0)
   {
     txid = t;
     block = b;
     tx_idx = idx;
   }
 
-  void set(string s, string r, uint64_t n, const uint256 &t, int b, unsigned int idx, unsigned char *p, unsigned int size, int fMultisig, uint64_t txf)
+  void Set(string s, string r, uint64_t n, const uint256 &t, int b, unsigned int idx, unsigned char *p, unsigned int size, int fMultisig, uint64_t txf)
   {
     sender = s;
     receiver = r;
@@ -1460,7 +1587,7 @@ uint64_t inAll = 0;
 uint64_t outAll = 0;
 uint64_t txFee = 0;
 
-            mp_tx->set(wtx.GetHash(), nBlock, idx);
+            mp_tx->Set(wtx.GetHash(), nBlock, idx);
 
             // quickly go through the outputs & ensure there is a marker (a send to the Exodus address)
             for (unsigned int i = 0; i < wtx.vout.size(); i++)
@@ -1968,7 +2095,7 @@ uint64_t txFee = 0;
 
   if (msc_debug2) fprintf(mp_fp, "single_pkt: %s\n", HexStr(single_pkt, packet_size + single_pkt, false).c_str());
 
-  mp_tx->set(strSender, strReference, 0, wtx.GetHash(), nBlock, idx, (unsigned char *)&single_pkt, packet_size, fMultisig, (inAll-outAll));  
+  mp_tx->Set(strSender, strReference, 0, wtx.GetHash(), nBlock, idx, (unsigned char *)&single_pkt, packet_size, fMultisig, (inAll-outAll));  
 
   return 0;
 }
@@ -2024,6 +2151,17 @@ int extra2 = 0;
       p_txlistdb->printAll();
       p_txlistdb->printStats();
       break;
+
+    case 2:
+        // display smart properties
+        for(map<unsigned int, CMPSP>::iterator my_it = my_sps.begin(); my_it != my_sps.end(); ++my_it)
+        {
+          // my_it->first = key
+          // my_it->second = value
+          printf("%9u => ", (my_it->first));
+          (my_it->second).print();
+        }
+    break;
   }
 
   return GetHeight();
@@ -2641,6 +2779,7 @@ const bool bTestnet = TestNet();
     nWaterlineBlock = MSC_SP_BLOCK-3;
     nWaterlineBlock = MSC_DEX_BLOCK-3;
 //    nWaterlineBlock = 296163 - 3; // bad Deadline
+    nWaterlineBlock = MSC_SP_BLOCK-3;
 #endif
 
     if (bTestnet) nWaterlineBlock = SOME_TESTNET_BLOCK; //testnet3

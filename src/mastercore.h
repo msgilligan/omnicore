@@ -12,6 +12,8 @@
 // what should've been in the Exodus address for this block if none were spent
 #define DEV_MSC_BLOCK_290629 (1743358325718)
 
+#define SP_STRING_FIELD_LEN 256
+
 // the min amount to send to marker, reference, data outputs, used in send_MP() & related functions
 #define MP_DUST_LIMIT 5678
 
@@ -132,7 +134,7 @@ public:
       // check here if enough money is available for this address prior to update !!!
       if (0>(moneys[which] + amount))
       {
-        fprintf(mp_fp, "%s(); FUNDS AVAILABLE: ONLY= %lu (INSUFFICIENT), line %d, file: %s\n", __FUNCTION__, moneys[which], __LINE__, __FILE__);
+        fprintf(mp_fp, "%s(); FUNDS AVAILABLE: ONLY= %lu (INSUFFICIENT)\n", __FUNCTION__, moneys[which]);
         return false;
       }
       moneys[which] += amount;
@@ -153,7 +155,7 @@ public:
       // check here if enough money is available for this address prior to update !!!
       if (0>(reserved[which] + amount))
       {
-        fprintf(mp_fp, "%s(); FUNDS AVAILABLE: ONLY= %lu (INSUFFICIENT), line %d, file: %s\n", __FUNCTION__, reserved[which], __LINE__, __FILE__);
+        fprintf(mp_fp, "%s(); FUNDS AVAILABLE: ONLY= %lu (INSUFFICIENT)\n", __FUNCTION__, reserved[which]);
         return false;
       }
       reserved[which] += amount;
@@ -174,7 +176,7 @@ public:
       // check here if enough money is available for this address prior to update !!!
       if (0>(raccepted[which] + amount))
       {
-        fprintf(mp_fp, "%s(); FUNDS AVAILABLE: ONLY= %lu (INSUFFICIENT), line %d, file: %s\n", __FUNCTION__, reserved[which], __LINE__, __FILE__);
+        fprintf(mp_fp, "%s(); FUNDS AVAILABLE: ONLY= %lu (INSUFFICIENT)\n", __FUNCTION__, reserved[which]);
         return false;
       }
       raccepted[which] += amount;
