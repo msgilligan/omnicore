@@ -1695,7 +1695,7 @@ bool isTransactionTypeAllowed(int txBlock, unsigned int txCurrency, unsigned int
 unsigned int type;
 int block_FirstAllowed;
 
-  if ((TestNet()) || isTestEcosystemProperty(txCurrency)) return true; // everything is always allowed on Bitcoin's TestNet or with TMSC/TestEcosystem on MainNet
+  if ((RegTest() || TestNet()) || isTestEcosystemProperty(txCurrency)) return true; // everything is always allowed on Bitcoin's TestNet or with TMSC/TestEcosystem on MainNet
 
   // BTC as currency/property is never allowed
   if (MASTERCOIN_CURRENCY_BTC == txCurrency) return false;
@@ -2810,13 +2810,13 @@ vector<vector<unsigned char> > vSolutions;
 
 int TXExodusFundraiser(const CTransaction &wtx, const string &sender, int64_t ExodusHighestValue, int nBlock, unsigned int nTime)
 {
-  if ((nBlock >= GENESIS_BLOCK && nBlock <= LAST_EXODUS_BLOCK) || (TestNet()))
+  if ((nBlock >= GENESIS_BLOCK && nBlock <= LAST_EXODUS_BLOCK) || (TestNet()) || (RegTest()))
   { //Exodus Fundraiser start/end blocks
     //printf("transaction: %s\n", wtx.ToString().c_str() );
     int deadline_timeleft=1377993600-nTime;
     double bonus= 1 + std::max( 0.10 * deadline_timeleft / (60 * 60 * 24 * 7), 0.0 );
 
-    if (TestNet())
+    if (TestNet() || RegTest())
     {
       bonus = 1;
 
@@ -2878,14 +2878,15 @@ uint64_t txFee = 0;
                 {
                   ExodusValues[marker_count++] = wtx.vout[i].nValue;
                 }
-                else if (TestNet() && (getmoney_testnet == strAddress))
+                else if (( RegTest() || TestNet()) && (getmoney_testnet == strAddress))
                 {
                   TestNetMoneyValues[getmoney_count++] = wtx.vout[i].nValue;
                 }
               }
             }
 
-            if ((TestNet() && getmoney_count))
+            if ((RegTest() || TestNet()) && getmoney_count)
+
             {
             }
             else if (!marker_count)
@@ -3022,7 +3023,7 @@ uint64_t txFee = 0;
             
             //This calculates exodus fundraiser for each tx within a given block
             int64_t BTC_amount = ExodusValues[0];
-            if (TestNet())
+            if (RegTest() || TestNet())
             {
               if (MONEYMAN_TESTNET_BLOCK <= nBlock) BTC_amount = TestNetMoneyValues[0];
             }
@@ -4139,6 +4140,10 @@ int mastercore_init()
   {
     exodus = exodus_testnet;
   }
+  if (RegTest())
+  {
+    exodus = exodus_testnet;
+  }
 
   p_txlistdb = new CMPTxList(GetDataDir() / "MP_txlist", 1<<20, false, fReindex);
   _my_sps = new CMPSPInfo(GetDataDir() / "MP_spinfo");
@@ -4150,6 +4155,8 @@ int mastercore_init()
   static const uint64_t snapshotDevMSC = 0;
 
   if (TestNet()) snapshotHeight = START_TESTNET_BLOCK - 1;
+
+  if (RegTest()) snapshotHeight = START_REGTEST_BLOCK - 1;
 
   ++mastercoreInitialized;
 
@@ -4198,6 +4205,8 @@ int mastercore_init()
 #endif
 
     if (TestNet()) nWaterlineBlock = START_TESTNET_BLOCK; //testnet3
+
+    if (RegTest()) nWaterlineBlock = START_REGTEST_BLOCK; //testnet3
   }
 
   // collect the real Exodus balances available at the snapshot time
@@ -4897,10 +4906,6 @@ Value gettransaction_MP(const Array& params, bool fHelp)
                 int confirmations =  1 + chainActive.Height() - pBlockIndex->nHeight;
                 int64_t blockTime = mapBlockIndex[blockHash]->nTime; 
 
-                if ((!TestNet()) && (blockHeight < POST_EXODUS_BLOCK)) 
-                        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Transaction not available - prior to preseed");
-                if ((TestNet()) && (blockHeight < START_TESTNET_BLOCK))
-                        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Testnet transaction not avaiable - prior to preseed");
 
                 mp_obj.SetNull();
                 CMPOffer temp_offer;
@@ -5129,8 +5134,6 @@ bool addressFilter;
                 int blockHeight = pBlockIndex->nHeight;
                 int64_t blockTime = mapBlockIndex[pwtx->hashBlock]->nTime;
                 int blockIndex = pwtx->nIndex;
-                if ((!TestNet()) && (blockHeight < POST_EXODUS_BLOCK)) continue; //do not display transactions prior to preseed
-                if ((TestNet()) && (blockHeight < START_TESTNET_BLOCK)) continue;
 
                 //ignore transactions not between nStartBlock and nEndBlock
                 if ((blockHeight < nStartBlock) || (blockHeight > nEndBlock)) continue;
