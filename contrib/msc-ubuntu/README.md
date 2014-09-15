@@ -1,5 +1,18 @@
 Master Core Upstart support for Ubuntu (tested on 14.04 LTS)
 
+To install:
+
+1. Build Master Core
+
+        ./autogen.sh
+        ./configure
+        make
+
+1. Run the install script
+
+        sudo ./contrib/msc-ubuntu/install-mastercore-upstart.sh
+
+
 This is based upon upstream work that is documented in these links:
 
 * [Issue #4124](https://github.com/bitcoin/bitcoin/issues/4124)
