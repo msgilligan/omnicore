@@ -154,24 +154,26 @@ $src/mastercored gettransaction_MP d2907fe2c716fc6d510d63b52557907445c784cb2e8ae
 ```
 
 ###Listing Historical Transactions
-The **listtransactions_MP** call allows for retrieval of the last n Master Protocol transactions from the wallet.
+The **listtransactions_MP** call allows for retrieval of the last n Master Protocol transactions from the wallet, if desired filtered on address.
 
 **Required Parameters**
 - There are no required parameters for this call.  Calling with no parameters will default to all addresses in the wallet and the last 10 transactions.
 
 **Additional Optional Parameters**
+- **_address (string):_** A valid bitcoin address to filter on or * for all addresses in the wallet
 - **_count (integer):_** The number of recent transactions to return
 - **_skip (integer):_** The number of recent transactions to skip
 - **_startblock (integer):_** Only show transactions at or after this block height
 - **_endblock (integer):_** Only show transactions at or before this block height
 
+Optional parameters can be combined as follows ```listtransactions_MP "*" 50 100``` to list the 50 most recent transactions across all addresses in the wallet, skipping the first 100.
+
+Optional parameters can be combined as follows ```listtransactions_MP "*" 99999 0 301000 302000``` to list the 99999 most recent transactions across all addresses in the wallet between blocks 301000 and 302000.
+
 **Examples**
 
-Optional parameters can be combined as follows ```listtransactions_MP 50 100``` to list the 50 most recent transactions across all addresses in the wallet, skipping the first 100.
-Optional parameters can be combined as follows ```listtransactions_MP 99999 0 301000 302000``` to list the 99999 most recent transactions across all addresses in the wallet between blocks 3010$
-
 ```
-$src/bitcoind listtransactions_MP 2
+$src/bitcoind listtransactions_MP 1MCHESTbJhJK27Ygqj4qKkx4Z4ZxhnP826 2
 [
     {
         "txid" : "0964e197c9140e4b5a2720d3f6c1345d01ca5813652da88b6b41fe7331691778",
@@ -202,77 +204,6 @@ $src/bitcoind listtransactions_MP 2
 ]
 ```
 *Please note, listtransactions_MP currently supports transactions available in the wallet only.*
-
-###Searching Historical Transactions
-The **searchtransactions_MP** call allows for retrieval of the last n Master Protocol transactions, if desired filtered on address.
-
-**Required Parameters**
-- There are no required parameters for this call.  Calling with no parameters will default to all addresses in the wallet and the last 10 transactions.
-
-**Additional Optional Parameters**
-- **_address (string):_** A valid bitcoin address to filter on or * for all addresses in the wallet
-- **_count (integer):_** The number of recent transactions to return
-- **_skip (integer):_** The number of recent transactions to skip 
-- **_startblock (integer):_** Only show transactions at or after this block height
-- **_endblock (integer):_** Only show transactions at or before this block height
-
-**Examples**
-
-Optional parameters can be combined as follows ```searchtransactions_MP "*" 50 100``` to search the 50 most recent transactions across all addresses in the wallet, skipping the first 100.
-Optional parameters can be combined as follows ```searchtransactions_MP "*" 99999 0 301000 302000``` to search the 99999 most recent transactions across all addresses in the wallet between blocks 301000 and 302000. 
-
-```
-$src/mastercored searchtransactions_MP mtGfANEnFsniGzWDt87kQg4zJunoQbT6f3
-[
-    {
-        "txid" : "fda128e34edc48426ca930df6167e4560cef9cda2192e37be69c965e9c5dd9d1",
-        "sendingaddress" : "mscsir9qKUYry5SqaW19T7fTriDw2BzYvD",
-        "referenceaddress" : "mtGfANEnFsniGzWDt87kQg4zJunoQbT6f3",
-        "direction" : "in",
-        "confirmations" : 1457,
-        "blocktime" : 1403126898,
-        "blockindex" : 7,
-        "type" : "Simple Send",
-        "currency" : 1,
-        "divisible" : true,
-        "amount" : "123456.00000000",
-        "valid" : true
-    },
-    {
-        "txid" : "33e4ea9a43102f9ad43b086d2bcf9478c67b5a1e64ce7dfc64bfe3f94b7f9222",
-        "sendingaddress" : "mscsir9qKUYry5SqaW19T7fTriDw2BzYvD",
-        "referenceaddress" : "mtGfANEnFsniGzWDt87kQg4zJunoQbT6f3",
-        "direction" : "in",
-        "confirmations" : 1454,
-        "blocktime" : 1403129492,
-        "blockindex" : 4,
-        "type" : "Simple Send",
-        "currency" : 1,
-        "divisible" : true,
-        "amount" : "222.00000000",
-        "valid" : true
-    },
-    {
-        "txid" : "c93a8622b6784b4cd5e109bea423553ed729b675965b6820837f80513be04852",
-        "sendingaddress" : "myN6HXmFhmMRo1bzfNXBDxTALYsh3EjXxk",
-        "referenceaddress" : "mtGfANEnFsniGzWDt87kQg4zJunoQbT6f3",
-        "direction" : "out",
-        "confirmations" : 906,
-        "blocktime" : 1403293908,
-        "blockindex" : 2,
-        "type" : "Simple Send",
-        "currency" : 1,
-        "divisible" : true,
-        "amount" : 50.12340000,
-        "valid" : true
-    }
-]
-```
-```
-{"jsonrpc":"1.0","id":"1","method":"searchransactions_MP","params":["mtGfANEnFsniGzWDt87kQg4zJunoQbT6f3"]}
-{"result":[{"txid":"fda128e34edc48426ca930df6167e4560cef9cda2192e37be69c965e9c5dd9d1","sendingaddress":"mscsir9qKUYry5SqaW19T7fTriDw2BzYvD","referenceaddress":"mtGfANEnFsniGzWDt87kQg4zJunoQbT6f3","direction":"in","confirmations":1457,"blocktime":1403126898,"blockindex":7,"type":"Simple Send","currency":1,"divisible":true,"amount":"123456.00000000","valid":true},{"txid":"33e4ea9a43102f9ad43b086d2bcf9478c67b5a1e64ce7dfc64bfe3f94b7f9222","sendingaddress":"mscsir9qKUYry5SqaW19T7fTriDw2BzYvD","referenceaddress":"mtGfANEnFsniGzWDt87kQg4zJunoQbT6f3","direction":"in","confirmations":1454,"blocktime":1403129492,"blockindex":4,"type":"Simple Send","currency":1,"divisible":true,"amount":"222.00000000","valid":true},{"txid":"c93a8622b6784b4cd5e109bea423553ed729b675965b6820837f80513be04852","sendingaddress":"myN6HXmFhmMRo1bzfNXBDxTALYsh3EjXxk","referenceaddress":"mtGfANEnFsniGzWDt87kQg4zJunoQbT6f3","direction":"out","confirmations":906,"blocktime":1403293908,"blockindex":2,"type":"Simple Send","currency":1,"divisible":true,"amount":"50.12340000","valid":true}],"error":null,"id":"1"}
-```
-*Please note, searchttransactions_MP currently supports transactions available in the wallet only.*
 
 ###Retrieving information about a Master Protocol property
 The **getproperty_MP** call allows for retrieval of information about a Master Protocol property.

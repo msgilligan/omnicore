@@ -10,6 +10,13 @@ then
   rm ${HOME}/.bitcoin3/regtest/ -rf
 fi
 
+if [[ "$1" = "-stop" ]]
+then
+  ./bitcoin-cli -rpcport=8330 -rpcuser=user -rpcpassword=password stop
+  ./bitcoin-cli -rpcport=8332 -rpcuser=user -rpcpassword=password stop
+  ./bitcoin-cli -rpcport=8334 -rpcuser=user -rpcpassword=password stop
+fi
+
 if [[ "$1" = "-s1" ]]
 then
   echo "Starting node 1..."; [ -d ${HOME}/.bitcoin/ ] || mkdir ${HOME}/.bitcoin/ >> /dev/null

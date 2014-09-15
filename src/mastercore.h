@@ -136,7 +136,6 @@ extern FILE *mp_fp;
 extern int msc_debug_dex;
 
 extern CCriticalSection cs_tally;
-extern char *c_strMastercoinCurrency(int i);
 
 enum TallyType { MONEY = 0, SELLOFFER_RESERVE = 1, ACCEPT_RESERVE = 2, TALLY_TYPE_COUNT };
 
@@ -314,198 +313,6 @@ public:
     bool isMPinBlockRange(int, int, bool);
 };
 
-// a single outstanding offer -- from one seller of one currency, internally may have many accepts
-class CMPOffer
-{
-private:
-  int offerBlock;
-  uint64_t offer_amount_original; // the amount of MSC for sale specified when the offer was placed
-  unsigned int currency;
-  uint64_t BTC_desired_original; // amount desired, in BTC
-  uint64_t min_fee;
-  unsigned char blocktimelimit;
-  uint256 txid;
-  unsigned char subaction;
-
-public:
-  uint256 getHash() const { return txid; }
-  unsigned int getCurrency() const { return currency; }
-  uint64_t getMinFee() const { return min_fee ; }
-  unsigned char getBlockTimeLimit() { return blocktimelimit; }
-  unsigned char getSubaction() { return subaction; }
-
-  uint64_t getOfferAmountOriginal() { return offer_amount_original; }
-  uint64_t getBTCDesiredOriginal() { return BTC_desired_original; }
-
-  CMPOffer():offerBlock(0),offer_amount_original(0),currency(0),BTC_desired_original(0),min_fee(0),blocktimelimit(0),txid(0)
-  {
-  }
-
-  CMPOffer(int b, uint64_t a, unsigned int cu, uint64_t d, uint64_t fee, unsigned char btl, const uint256 &tx)
-   :offerBlock(b),offer_amount_original(a),currency(cu),BTC_desired_original(d),min_fee(fee),blocktimelimit(btl),txid(tx)
-  {
-    if (msc_debug_dex) fprintf(mp_fp, "%s(%lu): %s , line %d, file: %s\n", __FUNCTION__, a, txid.GetHex().c_str(), __LINE__, __FILE__);
-  }
-
-  void Set(uint64_t d, uint64_t fee, unsigned char btl, unsigned char suba)
-  {
-    BTC_desired_original = d;
-    min_fee = fee;
-    blocktimelimit = btl;
-    subaction = suba;
-  }
-
-  void saveOffer(ofstream &file, SHA256_CTX *shaCtx, string const &addr ) const {
-    // compose the outputline
-    // seller-address, ...
-    string lineOut = (boost::format("%s,%d,%d,%d,%d,%d,%d,%s")
-      % addr
-      % offerBlock
-      % offer_amount_original
-      % currency
-      % BTC_desired_original
-      % min_fee
-      % (int)blocktimelimit
-      % txid.ToString()).str();
-
-    // add the line to the hash
-    SHA256_Update(shaCtx, lineOut.c_str(), lineOut.length());
-
-    // write the line
-    file << lineOut << endl;
-  }
-};  // end of CMPOffer class
-
-// do a map of buyers, primary key is buyer+currency
-// MUST account for many possible accepts and EACH currency offer
-class CMPAccept
-{
-private:
-  uint64_t accept_amount_original;    // amount of MSC/TMSC desired to purchased
-  uint64_t accept_amount_remaining;   // amount of MSC/TMSC remaining to purchased
-// once accept is seen on the network the amount of MSC being purchased is taken out of seller's SellOffer-Reserve and put into this Buyer's Accept-Reserve
-  unsigned char blocktimelimit;       // copied from the offer during creation
-  unsigned int currency;              // copied from the offer during creation
-
-  uint64_t offer_amount_original; // copied from the Offer during Accept's creation
-  uint64_t BTC_desired_original;  // copied from the Offer during Accept's creation
-
-  uint256 offer_txid; // the original offers TXIDs, needed to match Accept to the Offer during Accept's destruction, etc.
-
-public:
-  uint256 getHash() const { return offer_txid; }
-
-  uint64_t getOfferAmountOriginal() { return offer_amount_original; }
-  uint64_t getBTCDesiredOriginal() { return BTC_desired_original; }
-
-  int block;          // 'accept' message sent in this block
-
-  unsigned char getBlockTimeLimit() { return blocktimelimit; }
-  unsigned int getCurrency() const { return currency; }
-
-  int getAcceptBlock()  { return block; }
-
-  CMPAccept(uint64_t a, int b, unsigned char blt, unsigned int c, uint64_t o, uint64_t btc, const uint256 &txid):accept_amount_remaining(a),blocktimelimit(blt),currency(c),
-   offer_amount_original(o), BTC_desired_original(btc),offer_txid(txid),block(b)
-  {
-    accept_amount_original = accept_amount_remaining;
-    fprintf(mp_fp, "%s(%lu), line %d, file: %s\n", __FUNCTION__, a, __LINE__, __FILE__);
-  }
-
-  CMPAccept(uint64_t origA, uint64_t remA, int b, unsigned char blt, unsigned int c, uint64_t o, uint64_t btc, const uint256 &txid):accept_amount_original(origA),accept_amount_remaining(remA),blocktimelimit(blt),currency(c),
-   offer_amount_original(o), BTC_desired_original(btc),offer_txid(txid),block(b)
-  {
-    fprintf(mp_fp, "%s(%lu[%lu]), line %d, file: %s\n", __FUNCTION__, remA, origA, __LINE__, __FILE__);
-  }
-
-  void print()
-  {
-    fprintf(mp_fp, "buying: %12.8lf (originally= %12.8lf) in block# %d\n",
-     (double)accept_amount_remaining/(double)COIN, (double)accept_amount_original/(double)COIN, block);
-  }
-
-  uint64_t getAcceptAmountRemaining() const
-  { 
-    fprintf(mp_fp, "%s(); buyer still wants = %lu, line %d, file: %s\n", __FUNCTION__, accept_amount_remaining, __LINE__, __FILE__);
-
-    return accept_amount_remaining;
-  }
-
-  // reduce accept_amount_remaining and return "true" if the customer is fully satisfied (nothing desired to be purchased)
-  bool reduceAcceptAmountRemaining_andIsZero(const uint64_t really_purchased)
-  {
-  bool bRet = false;
-
-    if (really_purchased >= accept_amount_remaining) bRet = true;
-
-    accept_amount_remaining -= really_purchased;
-
-    return bRet;
-  }
-
-  void saveAccept(ofstream &file, SHA256_CTX *shaCtx, string const &addr, string const &buyer ) const {
-    // compose the outputline
-    // seller-address, currency, buyer-address, amount, fee, block
-    string lineOut = (boost::format("%s,%d,%s,%d,%d,%d,%d,%d,%d,%s")
-      % addr
-      % currency
-      % buyer
-      % block
-      % accept_amount_remaining
-      % accept_amount_original
-      % (int)blocktimelimit
-      % offer_amount_original
-      % BTC_desired_original
-      % offer_txid.ToString()).str();
-
-    // add the line to the hash
-    SHA256_Update(shaCtx, lineOut.c_str(), lineOut.length());
-
-    // write the line
-    file << lineOut << endl;
-  }
-
-};  // end of CMPAccept class
-
-// a metadex trade
-// TODO: finish soon... incomplete for now
-class CMPMetaDEx
-{
-private:
-  int block;
-  uint256 txid;
-  unsigned int idx; // index within the block
-  unsigned int currency;
-  uint64_t amount_original; // the amount for sale specified when the offer was placed
-  unsigned int desired_currency;
-  uint64_t desired_amount_original;
-  unsigned char subaction;
-
-  // price in 2 parts
-  uint64_t  price_int;
-  uint64_t  price_frac;
-
-  // inverse price in 2 parts
-  uint64_t  inverse_int;
-  uint64_t  inverse_frac;
-
-public:
-  uint256 getHash() const { return txid; }
-  unsigned int getCurrency() const { return currency; }
-
-  CMPMetaDEx(int, unsigned int, uint64_t, unsigned int, uint64_t, const uint256 &, unsigned int);
-  CMPMetaDEx(int, unsigned int, uint64_t, unsigned int, uint64_t, const uint256 &, unsigned int, uint64_t, uint64_t, uint64_t, uint64_t);
-
-  void Set0(int, unsigned int, uint64_t, unsigned int, uint64_t, const uint256 &, unsigned int);
-
-  void Set(uint64_t, uint64_t);
-  void Set(uint64_t, uint64_t, uint64_t, uint64_t);
-
-  std::string ToString() const;
-};
-
-
-
 // live crowdsales are these objects in a map
 class CMPCrowd
 {
@@ -593,7 +400,6 @@ public:
     file << lineOut << endl;
   }
 };  // end of CMPCrowd class
-
 
 class CMPSPInfo
 {
@@ -1127,26 +933,28 @@ int mastercore_save_state( CBlockIndex const *pBlockIndex );
 
 uint64_t rounduint64(double d);
 
+bool isBigEndian(void);
+
+void swapByteOrder16(unsigned short& us);
+void swapByteOrder32(unsigned int& ui);
+void swapByteOrder64(uint64_t& ull);
+
 namespace mastercore
 {
-typedef std::map<string, CMPOffer> OfferMap;
-typedef std::map<string, CMPAccept> AcceptMap;
 typedef std::map<string, CMPCrowd> CrowdMap;
-typedef std::map<string, CMPMetaDEx> MetaDExMap;
 
 extern std::map<string, CMPTally> mp_tally_map;
 extern CMPSPInfo *_my_sps;
 extern CMPTxList *p_txlistdb;
 
-extern OfferMap my_offers;
-extern AcceptMap my_accepts;
-
 extern CrowdMap my_crowds;
-extern MetaDExMap metadex;
+
+string strMPCurrency(unsigned int i);
 
 int GetHeight(void);
 bool isPropertyDivisible(unsigned int propertyId);
 bool isCrowdsaleActive(unsigned int propertyId);
+bool isCrowdsalePurchase(uint256 txid, string address, int64_t *propertyId = NULL, int64_t *userTokens = NULL, int64_t *issuerTokens = NULL);
 bool isMPinBlockRange(int starting_block, int ending_block, bool bDeleteFound);
 std::string FormatIndivisibleMP(int64_t n);
 
@@ -1160,6 +968,15 @@ int64_t strToInt64(std::string strAmount, bool divisible);
 CMPTally *getTally(const string & address);
 
 int64_t getTotalTokens(unsigned int propertyId, int64_t *n_owners_total = NULL);
+
+char *c_strMastercoinType(int i);
+char *c_strPropertyType(int i);
+
+bool isTransactionTypeAllowed(int txBlock, unsigned int txCurrency, unsigned int txType, unsigned short version);
+
+bool getValidMPTX(const uint256 &txid, int *block = NULL, unsigned int *type = NULL, uint64_t *nAmended = NULL);
+
+bool update_tally_map(string who, unsigned int which_currency, int64_t amount, TallyType ttype);
 }
 
 #endif
