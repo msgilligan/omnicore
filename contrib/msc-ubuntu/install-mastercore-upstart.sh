@@ -2,6 +2,7 @@
 
 # Copy the executable
 cp src/bitcoind /usr/bin/bitcoind
+cp src/bitcoin-cli /usr/bin/bitcoin-cli
 
 # Set up directories, users, and permissions as standardized by Bitcoin Core
 mkdir -p /etc/bitcoin
