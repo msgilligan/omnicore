@@ -12,13 +12,23 @@ To install:
 
         sudo ./contrib/msc-ubuntu/install-mastercore-upstart.sh
 
+Running `bitcoin-cli` for a quick test:
+
+1. Add your user to the `bitcoin` group so you can read `/etc/bitcoin/bitcoin.conf`
+
+        sudo usermod -a -G bitcoin <username>
+
+1. Use `getinfo` to make sure RPC is working
+
+        /usr/sbin/bitcoin-cli -conf=/etc/bitcoin/bitcoin.conf getinfo
+
 
 This is based upon upstream work that is documented in these links:
 
 * [Issue #4124](https://github.com/bitcoin/bitcoin/issues/4124)
 * [Issue #4611](https://github.com/bitcoin/bitcoin/pull/4611)
 
-This branch/PR used "git cherry-pick" to pull some of that code so it can be added to the michael-0921 branch of Master Core.
+This branch/PR used `git cherry-pick` to pull some of that code so it can be added to the `michael-0921` branch of Master Core.
 
 Doc on the files from the "Cherry Pick" can be found:
 
