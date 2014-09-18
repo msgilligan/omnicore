@@ -1,5 +1,5 @@
-#ifndef _MASTERCOIN_EX
-#define _MASTERCOIN_EX 1
+#ifndef _MASTERCOIN_DEX
+#define _MASTERCOIN_DEX 1
 
 #include "mastercore.h"
 
@@ -164,7 +164,8 @@ public:
 };  // end of CMPAccept class
 
 // a metadex trade
-// TODO: finish soon... incomplete for now
+// TODO
+// ...
 class CMPMetaDEx
 {
 private:
@@ -232,5 +233,5 @@ int MetaDEx_Destroy(const string &sender_addr, unsigned int curr);
 int MetaDEx_Update(const string &sender_addr, unsigned int curr, uint64_t nValue, int block, unsigned int currency_desired, uint64_t amount_desired, const uint256 &txid, unsigned int idx);
 }
 
-#endif // #ifndef _MASTERCOIN_EX
+#endif // #ifndef _MASTERCOIN_DEX
 

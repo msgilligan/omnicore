@@ -47,7 +47,7 @@ using namespace leveldb;
 
 using namespace mastercore;
 
-#include "mastercore_ex.h"
+#include "mastercore_dex.h"
 #include "mastercore_tx.h"
 
 extern int msc_debug_dex, msc_debug_metadex;
@@ -260,9 +260,6 @@ int rc = DEX_ERROR_SELLOFFER;
 int mastercore::DEx_acceptCreate(const string &buyer, const string &seller, int curr, uint64_t nValue, int block, uint64_t fee_paid, uint64_t *nAmended)
 {
 int rc = DEX_ERROR_ACCEPT - 10;
-
-  if (msc_debug_dex) fprintf(mp_fp, "%s()\n", __FUNCTION__);
-
 OfferMap::iterator my_it;
 const string selloffer_combo = STR_SELLOFFER_ADDR_CURR_COMBO(seller);
 const string accept_combo = STR_ACCEPT_ADDR_CURR_ADDR_COMBO(seller, buyer);
@@ -273,6 +270,8 @@ uint64_t nActualAmount = getMPbalance(seller, curr, SELLOFFER_RESERVE);
   if (my_it == my_offers.end()) return DEX_ERROR_ACCEPT -15;
 
   CMPOffer &offer = my_it->second;
+
+  if (msc_debug_dex) fprintf(mp_fp, "%s(offer: %s)\n", __FUNCTION__, offer.getHash().GetHex().c_str());
 
   // here we ensure the correct BTC fee was paid in this acceptance message, per spec
   if (fee_paid < offer.getMinFee())
