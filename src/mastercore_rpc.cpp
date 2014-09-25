@@ -189,7 +189,7 @@ Value getbalance_MP(const Array& params, bool fHelp)
 // send a MP transaction via RPC - simple send
 Value send_MP(const Array& params, bool fHelp)
 {
-if (fHelp || params.size() < 4 || params.size() > 5)
+if (fHelp || params.size() < 4 || params.size() > 6)
         throw runtime_error(
             "send_MP\n"
             "\nCreates and broadcasts a simple send for a given amount and currency/property ID.\n"
@@ -199,6 +199,7 @@ if (fHelp || params.size() < 4 || params.size() > 5)
             "PropertyID    : the id of the smart property to send\n"
             "Amount        : the amount to send\n"
             "RedeemAddress : (optional) the address that can redeem the bitcoin outputs. Defaults to FromAddress\n"
+            "ReferenceAmount:(optional)\n"
             "Result:\n"
             "txid    (string) The transaction ID of the sent transaction\n"
             "\nExamples:\n"
@@ -222,20 +223,44 @@ if (fHelp || params.size() < 4 || params.size() > 5)
   bool divisible = false;
   divisible=sp.isDivisible();
 
-//  printf("%s(), params3='%s' line %d, file: %s\n", __FUNCTION__, params[3].get_str().c_str(), __LINE__, __FILE__);
-
   string strAmount = params[3].get_str();
-  int64_t Amount = 0;
+  int64_t Amount = 0, additional = 0;
   Amount = strToInt64(strAmount, divisible);
 
   if ((Amount > 9223372036854775807) || (0 >= Amount))
            throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount");
 
+  std::string strAdditional = (params.size() > 5) ? (params[5].get_str()): "0";
+  additional = strToInt64(strAdditional, true);
+
+  int n = params.size();
+  printf("#: %d, additional= %ld\n", n, additional);
+
+  if ((0.01 * COIN) < additional)
+           throw JSONRPCError(RPC_TYPE_ERROR, "Invalid referenceamount");
+
   //some sanity checking of the data supplied?
   int code = 0;
-  uint256 newTX = send_INTERNAL_1packet(FromAddress, ToAddress, RedeemAddress, propertyId, Amount, MSC_TYPE_SIMPLE_SEND, &code);
+  uint256 newTX = send_INTERNAL_1packet(FromAddress, ToAddress, RedeemAddress, propertyId, Amount, MSC_TYPE_SIMPLE_SEND, additional, &code);
 
   if (0 != code) throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("error code= %i", code));
+
+  // support for pending, 0-confirm
+  if (update_tally_map(FromAddress, propertyId, -Amount, PENDING))
+  {
+    update_tally_map(ToAddress, propertyId, Amount, PENDING);
+
+    {
+    CMPPending pending;
+
+      pending.src = FromAddress;
+      pending.dest = ToAddress;
+      pending.amount = Amount;
+      pending.curr = propertyId;
+
+      pendingAdd(newTX, pending);
+    }
+  }
 
   //we need to do better than just returning a string of 0000000 here if we can't send the TX
   return newTX.GetHex();
@@ -268,9 +293,6 @@ if (fHelp || params.size() < 3 || params.size() > 4)
 
   unsigned int propertyId = int(tmpPropertyId);
 
-  if (!isTestEcosystemProperty(propertyId)) // restrict usage to test eco only
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Send to owners restricted to test properties only in this build"); 
-
   CMPSPInfo::Entry sp;
   if (false == _my_sps->getSP(propertyId, sp)) {
     throw JSONRPCError(RPC_INVALID_PARAMETER, "Property ID does not exist");
@@ -288,11 +310,11 @@ if (fHelp || params.size() < 3 || params.size() > 4)
   if ((Amount > 9223372036854775807) || (0 >= Amount))
            throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount");
 
-//  printf("%s() %40.25lf, %lu, line %d, file: %s\n", __FUNCTION__, tmpAmount, Amount, __LINE__, __FILE__);
+  // printf("%s() %40.25lf, %lu, line %d, file: %s\n", __FUNCTION__, tmpAmount, Amount, __LINE__, __FILE__);
 
   //some sanity checking of the data supplied?
   int code = 0;
-  uint256 newTX = send_INTERNAL_1packet(FromAddress, "", RedeemAddress, propertyId, Amount, MSC_TYPE_SEND_TO_OWNERS, &code);
+  uint256 newTX = send_INTERNAL_1packet(FromAddress, "", RedeemAddress, propertyId, Amount, MSC_TYPE_SEND_TO_OWNERS, 0, &code);
 
   if (0 != code) throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("error code= %i", code));
 

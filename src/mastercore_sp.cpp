@@ -566,3 +566,15 @@ CrowdMap::iterator my_it = my_crowds.begin();
   return how_many_erased;
 }
 
+char *mastercore::c_strPropertyType(int i)
+{
+  switch (i)
+  {
+    case MSC_PROPERTY_TYPE_DIVISIBLE: return (char *) "divisible";
+    case MSC_PROPERTY_TYPE_INDIVISIBLE: return (char *) "indivisible";
+  }
+
+  return (char *) "*** property type error ***";
+}
+
+

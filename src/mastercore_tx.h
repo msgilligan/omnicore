@@ -61,7 +61,7 @@ public:
 //  mutable CCriticalSection cs_msc;  // TODO: need to refactor first...
 
   unsigned int getType() const { return type; }
-  const string getTypeString() const { return string(c_strMastercoinType(getType())); }
+  const string getTypeString() const { return string(c_strMasterProtocolTXType(getType())); }
   unsigned int getCurrency() const { return currency; }
   unsigned short getVersion() const { return version; }
   unsigned short getPropertyType() const { return prop_type; }

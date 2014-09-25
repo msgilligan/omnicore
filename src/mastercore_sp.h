@@ -486,6 +486,8 @@ typedef std::map<string, CMPCrowd> CrowdMap;
 
 extern CrowdMap my_crowds;
 
+char *c_strPropertyType(int i);
+
 CMPCrowd *getCrowd(const string & address);
 
 int calculateFractional(unsigned short int propType, unsigned char bonusPerc, uint64_t fundraiserSecs, 

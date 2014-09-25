@@ -72,7 +72,7 @@ int CMPTransaction::step1()
   swapByteOrder32(type);
 
   fprintf(mp_fp, "version: %d, Class %s\n", version, !multi ? "A":"B");
-  fprintf(mp_fp, "\t            type: %u (%s)\n", type, c_strMastercoinType(type));
+  fprintf(mp_fp, "\t            type: %u (%s)\n", type, c_strMasterProtocolTXType(type));
 
   return (type);
 }
@@ -617,5 +617,31 @@ int CMPTransaction::logicMath_RevokeTokens()
 
     rc = 0;
     return rc;
+}
+
+char *mastercore::c_strMasterProtocolTXType(int i)
+{
+  switch (i)
+  {
+    case MSC_TYPE_SIMPLE_SEND: return ((char *)"Simple Send");
+    case MSC_TYPE_RESTRICTED_SEND: return ((char *)"Restricted Send");
+    case MSC_TYPE_SEND_TO_OWNERS: return ((char *)"Send To Owners");
+    case MSC_TYPE_SAVINGS_MARK: return ((char *)"Savings");
+    case MSC_TYPE_SAVINGS_COMPROMISED: return ((char *)"Savings COMPROMISED");
+    case MSC_TYPE_RATELIMITED_MARK: return ((char *)"Rate-Limiting");
+    case MSC_TYPE_AUTOMATIC_DISPENSARY: return ((char *)"Automatic Dispensary");
+    case MSC_TYPE_TRADE_OFFER: return ((char *)"DEx Sell Offer");
+    case MSC_TYPE_METADEX: return ((char *)"MetaDEx: Offer/Accept one Master Protocol Coins for another");
+    case MSC_TYPE_ACCEPT_OFFER_BTC: return ((char *)"DEx Accept Offer");
+    case MSC_TYPE_CREATE_PROPERTY_FIXED: return ((char *)"Create Property - Fixed");
+    case MSC_TYPE_CREATE_PROPERTY_VARIABLE: return ((char *)"Create Property - Variable");
+    case MSC_TYPE_PROMOTE_PROPERTY: return ((char *)"Promote Property");
+    case MSC_TYPE_CLOSE_CROWDSALE: return ((char *)"Close Crowdsale");
+    case MSC_TYPE_CREATE_PROPERTY_MANUAL: return ((char *)"Create Property - Manual");
+    case MSC_TYPE_GRANT_PROPERTY_TOKENS: return ((char *)"Grant Property Tokens");
+    case MSC_TYPE_REVOKE_PROPERTY_TOKENS: return ((char *)"Revoke Property Tokens");
+
+    default: return ((char *)"* unknown type *");
+  }
 }
 
