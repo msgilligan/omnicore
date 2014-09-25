@@ -24,7 +24,7 @@ chown bitcoin:bitcoin /etc/bitcoin/bitcoin.conf
 chmod 660 /etc/bitcoin/bitcoin.conf
 
 # Copy Upstart configuration file/script
-cp contrib/init/bitcoind.conf /etc/init
+cp contrib/msc-ubuntu/bitcoind.conf /etc/init
 
 echo "Set rpcuser and rpcpassword in /etc/bitcoin/bitcoin.conf, then type: 'service bitcoind start' (as root/sudo)"
 
