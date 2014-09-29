@@ -131,6 +131,8 @@ enum FILETYPES {
 
 // forward declarations
 string FormatDivisibleMP(int64_t n, bool fSign = false);
+uint256 send_MP(const string &FromAddress, const string &ToAddress, const string &RedeemAddress, unsigned int CurrencyID, uint64_t Amount);
+int64_t feeCheck(const string &address);
 
 const std::string ExodusAddress();
 
@@ -325,19 +327,25 @@ public:
 class CMPPending
 {
 public:
-  string src;
-  string dest;
+  string src; // the FromAddress
+//  string dest;
   unsigned int curr;
   int64_t amount;
 
   void print(uint256 txid) const
   {
-    printf("%s : %s %s %d %ld\n", txid.GetHex().c_str(), src.c_str(), dest.c_str(), curr, amount);
+    printf("%s : %s %d %ld\n", txid.GetHex().c_str(), src.c_str(), curr, amount);
   }
 };
 
 extern uint64_t global_MSC_total;
 extern uint64_t global_MSC_RESERVED_total;
+//temp - only supporting 100,000 properties per eco here, research best way to expand array
+//these 4 arrays use about 3MB total memory with 100K properties limit (100000*8*4 bytes)
+extern uint64_t global_balance_money_maineco[100000];
+extern uint64_t global_balance_reserved_maineco[100000];
+extern uint64_t global_balance_money_testeco[100000];
+extern uint64_t global_balance_reserved_testeco[100000];
 
 int mastercore_init(void);
 
@@ -369,13 +377,11 @@ extern CMPTxList *p_txlistdb;
 
 typedef std::map<uint256, CMPPending> PendingMap;
 
-extern PendingMap my_pending;
-int pendingAdd(const uint256 &txid, const CMPPending &pend);
-
 string strMPCurrency(unsigned int i);
 
 int GetHeight(void);
 bool isPropertyDivisible(unsigned int propertyId);
+string getPropertyName(unsigned int propertyId);
 bool isCrowdsaleActive(unsigned int propertyId);
 bool isCrowdsalePurchase(uint256 txid, string address, int64_t *propertyId = NULL, int64_t *userTokens = NULL, int64_t *issuerTokens = NULL);
 bool isMPinBlockRange(int starting_block, int ending_block, bool bDeleteFound);
@@ -392,6 +398,7 @@ int64_t strToInt64(std::string strAmount, bool divisible);
 CMPTally *getTally(const string & address);
 
 int64_t getTotalTokens(unsigned int propertyId, int64_t *n_owners_total = NULL);
+int set_wallet_totals();
 
 char *c_strMasterProtocolTXType(int i);
 

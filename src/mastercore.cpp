@@ -52,7 +52,7 @@
 
 // comment out MY_HACK & others here - used for Unit Testing only !
 // #define MY_HACK
-// #define DISABLE_LOG_FILE 
+// #define DISABLE_LOG_FILE
 
 FILE *mp_fp = NULL;
 
@@ -82,8 +82,12 @@ static const int nBlockTop = 0;
 
 static int nWaterlineBlock = 0;  //
 
-// uint64_t global_MSC_total = 0;
-// uint64_t global_MSC_RESERVED_total = 0;
+uint64_t global_MSC_total = 0;
+uint64_t global_MSC_RESERVED_total = 0;
+uint64_t global_balance_money_maineco[100000];
+uint64_t global_balance_reserved_maineco[100000];
+uint64_t global_balance_money_testeco[100000];
+uint64_t global_balance_reserved_testeco[100000];
 
 static uint64_t exodus_prev = 0;
 static uint64_t exodus_balance;
@@ -94,7 +98,7 @@ int msc_debug_parser_data = 0;
 int msc_debug_parser= 0;
 int msc_debug_verbose=0;
 int msc_debug_verbose2=0;
-int msc_debug_verbose3=1;
+int msc_debug_verbose3=0;
 int msc_debug_vin   = 0;
 int msc_debug_script= 0;
 int msc_debug_dex   = 1;
@@ -184,7 +188,6 @@ static void ShrinkMasterCoreDebugFile()
         fseek(file, -sizeof(pch), SEEK_END);
         int nBytes = fread(pch, 1, sizeof(pch), file);
         fclose(file);
-
         file = fopen(pathLog.string().c_str(), "w");
         if (file)
         {
@@ -357,9 +360,9 @@ CMPSPInfo *mastercore::_my_sps;
 CrowdMap mastercore::my_crowds;
 MetaDExMap mastercore::metadex;
 
-PendingMap mastercore::my_pending;
+static PendingMap my_pending;
 
-CMPPending *pendingDelete(const uint256 txid, bool bErase = false)
+static CMPPending *pendingDelete(const uint256 txid, bool bErase = false)
 {
   if (msc_debug_verbose3) fprintf(mp_fp, "%s(%s)\n", __FUNCTION__, txid.GetHex().c_str());
 
@@ -373,16 +376,12 @@ CMPPending *pendingDelete(const uint256 txid, bool bErase = false)
     p_pending->print(txid);
 
     int64_t src_amount = getMPbalance(p_pending->src, p_pending->curr, PENDING);
-    int64_t dest_amount = getMPbalance(p_pending->dest, p_pending->curr, PENDING);
 
-    printf("%s()src= %ld, dest= %ld, line %d, file: %s\n", __FUNCTION__, src_amount, dest_amount, __LINE__, __FILE__);
+    fprintf(mp_fp, "%s()src= %ld, line %d, file: %s\n", __FUNCTION__, src_amount, __LINE__, __FILE__);
 
-    if (src_amount && dest_amount)
+    if (src_amount)
     {
-      if (update_tally_map(p_pending->dest, p_pending->curr, - p_pending->amount, PENDING))
-      {
-        update_tally_map(p_pending->src, p_pending->curr, p_pending->amount, PENDING);
-      }
+      update_tally_map(p_pending->src, p_pending->curr, p_pending->amount, PENDING);
     }
 
     if (bErase)
@@ -398,12 +397,22 @@ CMPPending *pendingDelete(const uint256 txid, bool bErase = false)
   return (CMPPending *) NULL;
 }
 
-int mastercore::pendingAdd(const uint256 &txid, const CMPPending &pend)
+static int pendingAdd(const uint256 &txid, const string &FromAddress, unsigned int propId, int64_t Amount)
 {
-  printf("%s(), line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
+CMPPending pending;
 
-  pend.print(txid);
-  my_pending.insert(std::make_pair(txid, pend));
+  printf("%s(%s,%s,%u,%ld), line %d, file: %s\n", __FUNCTION__, txid.GetHex().c_str(), FromAddress.c_str(), propId, Amount, __LINE__, __FILE__);
+
+  // support for pending, 0-confirm
+  if (update_tally_map(FromAddress, propId, -Amount, PENDING))
+  {
+    pending.src = FromAddress;
+    pending.amount = Amount;
+    pending.curr = propId;
+
+    pending.print(txid);
+    my_pending.insert(std::make_pair(txid, pending));
+  }
 
   return 0;
 }
@@ -452,6 +461,13 @@ int64_t pending = getMPbalance(Address, currency, PENDING);
   }
 
   return money;
+}
+
+static bool isRangeOK(const uint64_t input)
+{
+  if (MAX_INT_8_BYTES < input) return false;
+
+  return true;
 }
 
 // returns false if we are out of range and/or overflow
@@ -777,33 +793,52 @@ const double available_reward=all_reward * part_available;
 }
 
 // TODO: optimize efficiency -- iterate only over wallet's addresses in the future
-int set_wallet_totals()
+// NOTE: if we loop over wallet addresses we miss tokens that may be in change addresses (since mapAddressBook does not
+//       include change addresses).  with current transaction load, about 0.02 - 0.06 seconds is spent on this function
+int mastercore::set_wallet_totals()
 {
-int my_addresses_count = 0;
-/* DISABLE FOR NOW !!!
-const unsigned int currency = MASTERCOIN_CURRENCY_MSC;  // FIXME: hard-coded for MSC only, for PoC
+  //concerned about efficiency here, time how long this takes, averaging 0.02-0.04s on my system
+  //timer t;
+  int my_addresses_count = 0;
+  int64_t propertyId;
+  unsigned int nextSPID = _my_sps->peekNextSPID(1); // real eco
+  unsigned int nextTestSPID = _my_sps->peekNextSPID(2); // test eco
 
-  global_MSC_total = 0;
-  global_MSC_RESERVED_total = 0;
+  //zero bals
+  for (propertyId = 1; propertyId<nextSPID; propertyId++) //main eco
+  {
+    global_balance_money_maineco[propertyId] = 0;
+    global_balance_reserved_maineco[propertyId] = 0;
+  }
+  for (propertyId = TEST_ECO_PROPERTY_1; propertyId<nextTestSPID; propertyId++) //test eco
+  {
+    global_balance_money_testeco[propertyId-2147483647] = 0;
+    global_balance_reserved_testeco[propertyId-2147483647] = 0;
+  }
 
   for(map<string, CMPTally>::iterator my_it = mp_tally_map.begin(); my_it != mp_tally_map.end(); ++my_it)
   {
-    // my_it->first = key
-    // my_it->second = value
-
     if (IsMyAddress(my_it->first))
     {
-      ++my_addresses_count;
-
-      global_MSC_total += (my_it->second).getMoney(currency, false);
-      global_MSC_RESERVED_total += (my_it->second).getMoney(currency, true);
+       for (propertyId = 1; propertyId<nextSPID; propertyId++) //main eco
+       {
+              //global_balance_money_maineco[propertyId] += getMPbalance(my_it->first, propertyId, MONEY);
+              global_balance_money_maineco[propertyId] += getUserAvailableMPbalance(my_it->first, propertyId);
+              global_balance_reserved_maineco[propertyId] += getMPbalance(my_it->first, propertyId, SELLOFFER_RESERVE);
+              if (propertyId < 3) global_balance_reserved_maineco[propertyId] += getMPbalance(my_it->first, propertyId, ACCEPT_RESERVE);
+       }
+       for (propertyId = TEST_ECO_PROPERTY_1; propertyId<nextTestSPID; propertyId++) //test eco
+       {
+              //global_balance_money_testeco[propertyId-2147483647] += getMPbalance(my_it->first, propertyId, MONEY);
+              global_balance_money_testeco[propertyId-2147483647] += getUserAvailableMPbalance(my_it->first, propertyId);
+              global_balance_reserved_testeco[propertyId-2147483647] += getMPbalance(my_it->first, propertyId, SELLOFFER_RESERVE);
+       }
     }
   }
-*/
-
+  //printf("Global MSC totals: MSC_total= %lu, MSC_RESERVED_total= %lu\n", global_balance_money_maineco[1], global_balance_reserved_maineco[1]);
+  //std::cout << t.elapsed() << std::endl;
   return (my_addresses_count);
 }
-
 
 static void prepareObfuscatedHashes(const string &address, string (&ObfsHashes)[1+MAX_SHA256_OBFUSCATION_TIMES])
 {
@@ -1111,10 +1146,7 @@ int p2shAllowed = 0;
             }
           if (msc_debug_script) fprintf(mp_fp, "\n");
 
-          // TODO: verify that we can handle multiple multisigs per tx
           wtx.vout[i].scriptPubKey.mscore_parse(multisig_script_data, false);
-
-//          break;  // get out of processing this first multisig  , Michael Jun 24
         }
               }
             } // end of the outputs' for loop
@@ -1238,8 +1270,6 @@ int p2shAllowed = 0;
               if (strDataAddress.empty()) // an empty Data Address here means it is not Class A valid and should be defaulted to a BTC payment
               {
               // this must be the BTC payment - validate (?)
-              // TODO
-              // ...
 //              if (msc_debug_verbose) fprintf(mp_fp, "\n================BLOCK: %d======\ntxid: %s\n", nBlock, wtx.GetHash().GetHex().c_str());
               fprintf(mp_fp, "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
               fprintf(mp_fp, "sender: %s , receiver: %s\n", strSender.c_str(), strReference.c_str());
@@ -1837,7 +1867,7 @@ static int load_most_relevant_state()
       continue;
     }
 
-    std::string fName = (*--dIter->path().end()).c_str();
+    std::string fName = (*--dIter->path().end()).string();
     std::vector<std::string> vstr;
     boost::split(vstr, fName, boost::is_any_of("-."), token_compress_on);
     if (  vstr.size() == 3 &&
@@ -2153,7 +2183,6 @@ int mastercore_init()
   }
 
   printf("%s()%s, line %d, file: %s\n", __FUNCTION__, isNonMainNet() ? "TESTNET":"", __LINE__, __FILE__);
-
   ShrinkMasterCoreDebugFile();
 
 #ifndef  DISABLE_LOG_FILE
@@ -2220,54 +2249,7 @@ int mastercore_init()
     if (RegTest()) nWaterlineBlock = START_REGTEST_BLOCK; //testnet3
 
 #ifdef  MY_HACK
-/*
-    nWaterlineBlock = MSC_SP_BLOCK-3;
-    nWaterlineBlock = MSC_DEX_BLOCK-3;
-//    nWaterlineBlock = 296163 - 3; // bad Deadline
-    nWaterlineBlock = MSC_SP_BLOCK-3;
-    nWaterlineBlock = 292665;
-    nWaterlineBlock = 303550;
-    nWaterlineBlock = 303550;
-    nWaterlineBlock = 308500;
-    nWaterlineBlock = MSC_DEX_BLOCK-3;
-*/
-
-    update_tally_map(exodus_address, MASTERCOIN_CURRENCY_TMSC, COIN*5678, MONEY); // put some TMSC in, for my hack
-    update_tally_map("1PVWtK1ATnvbRaRceLRH5xj8XV1LxUBu7n", MASTERCOIN_CURRENCY_MSC, COIN*123, MONEY);
-    update_tally_map("1PVWtK1ATnvbRaRceLRH5xj8XV1LxUBu7n", MASTERCOIN_CURRENCY_TMSC, COIN*234, MONEY);
-    update_tally_map("1PVWtK1ATnvbRaRceLRH5xj8XV1LxUBu7n", 0x80000009, COIN*345, MONEY);
-    update_tally_map("1PVWtK1ATnvbRaRceLRH5xj8XV1LxUBu7n", 0x8000003F, COIN*345, MONEY);
-    update_tally_map("1PVWtK1ATnvbRaRceLRH5xj8XV1LxUBu7n", 0x80000040, COIN*345, MONEY);
-    update_tally_map("1MCHESTbJhJK27Ygqj4qKkx4Z4ZxhnP826", MASTERCOIN_CURRENCY_MSC, COIN*456, MONEY);
-    update_tally_map("1MCHESTbJhJK27Ygqj4qKkx4Z4ZxhnP826", MASTERCOIN_CURRENCY_TMSC, COIN*567, MONEY);
-    update_tally_map("1MCHESTxYkPSLoJ57WBQot7vz3xkNahkcb", MASTERCOIN_CURRENCY_MSC, COIN*678, MONEY);
-    update_tally_map("1MCHESTxYkPSLoJ57WBQot7vz3xkNahkcb", MASTERCOIN_CURRENCY_TMSC, COIN*789, MONEY);
-    update_tally_map("1MCHESTptvd2LnNp7wmr2sGTpRomteAkq8", 0x80000003, COIN*321, MONEY);
-//    nWaterlineBlock = 304000;
-
-    update_tally_map("1PfREWL44zJun1MLXkH64s88DSkPZXVxot", MASTERCOIN_CURRENCY_MSC, COIN*123, MONEY);
-    update_tally_map("1PfREWL44zJun1MLXkH64s88DSkPZXVxot", MASTERCOIN_CURRENCY_TMSC, COIN*234, MONEY);
-//    nWaterlineBlock = 310500;
-
-    update_tally_map("18bAjW3tvSX8QK3XLdcApug71nNKmB4jnU", MASTERCOIN_CURRENCY_MSC, COIN*234, MONEY);
-    update_tally_map("18bAjW3tvSX8QK3XLdcApug71nNKmB4jnU", MASTERCOIN_CURRENCY_TMSC, COIN*234, MONEY);
-
-    update_tally_map("18bAjW3tvSX8QK3XLdcApug71nNKmB4jnU", 24, COIN*55555, MONEY);
-
-    update_tally_map("1PRozi3UhpXtC4kZtPD1nfCFXJkXrV27Wp", MASTERCOIN_CURRENCY_MSC, COIN*234, MONEY);
-    update_tally_map("1PRozi3UhpXtC4kZtPD1nfCFXJkXrV27Wp", MASTERCOIN_CURRENCY_TMSC, COIN*234, MONEY);
-//    nWaterlineBlock = 310000;
-
-    update_tally_map("mxaYwMv2Brbs7CW9r5aYuEr1jKTSDXg1TH", MASTERCOIN_CURRENCY_TMSC, COIN*234, MONEY);
-    update_tally_map("mxaYwMv2Brbs7CW9r5aYuEr1jKTSDXg1TH", MASTERCOIN_CURRENCY_MSC, COIN*234, MONEY);
-    update_tally_map("mxaYwMv2Brbs7CW9r5aYuEr1jKTSDXg1TH", 2147483652, COIN*234, MONEY);
-    update_tally_map("mxaYwMv2Brbs7CW9r5aYuEr1jKTSDXg1TH", 2147483652, COIN*234, MONEY);
-
-    update_tally_map("mfaiZGBkY4mBqt3PHPD2qWgbaafGa7vR64", MASTERCOIN_CURRENCY_TMSC, COIN*234, MONEY);
-    update_tally_map("mfaiZGBkY4mBqt3PHPD2qWgbaafGa7vR64", MASTERCOIN_CURRENCY_MSC, COIN*234, MONEY);
-    update_tally_map("mfaiZGBkY4mBqt3PHPD2qWgbaafGa7vR64", 2147483652, COIN*234, MONEY);
-    update_tally_map("mfaiZGBkY4mBqt3PHPD2qWgbaafGa7vR64", 2147483652, COIN*234, MONEY);
-
+//    nWaterlineBlock = MSC_DEX_BLOCK-3;
 //    if (isNonMainNet()) nWaterlineBlock = 272700;
 #endif
   }
@@ -2321,6 +2303,9 @@ int mastercore_handler_tx(const CTransaction &tx, int nBlock, unsigned int idx, 
   }
 
   // clear pending, if any
+  // NOTE1: Every incoming TX is checked, not just MP-ones because:
+  //  if for some reason the incoming TX doesn't pass our parser validation steps successfuly, I'd still want to clear pending amounts for that TX.
+  // NOTE2: Plus I wanna clear the amount before that TX is parsed by our protocol, in case we ever consider pending amounts in internal calculations.
   (void) pendingDelete(tx.GetHash(), true);
 
 CMPTransaction mp_obj;
@@ -2408,7 +2393,7 @@ int64_t GetDustLimit(const CScript& scriptPubKey)
     return nDustLimit;
 }
 
-static int selectCoins(const string &FromAddress, CCoinControl &coinControl, int64_t additional)
+static int64_t selectCoins(const string &FromAddress, CCoinControl &coinControl, int64_t additional)
 {
   CWallet *wallet = pwalletMain;
   int64_t n_max = (COIN * (20 * (0.0001))); // assume 20KBytes max TX size at 0.0001 per kilobyte
@@ -2475,7 +2460,15 @@ static int selectCoins(const string &FromAddress, CCoinControl &coinControl, int
         break;
     } // for iterate over the wallet end
 
-  return 0;
+// return 0;
+return n_total;
+}
+
+int64_t feeCheck(const string &address)
+{
+    // check the supplied address against selectCoins to determine if sufficient fees for send
+    CCoinControl coinControl;
+    return selectCoins(address, coinControl, 0);
 }
 
 #define PUSH_BACK_BYTES(vector, value)\
@@ -2665,19 +2658,45 @@ vector< pair<CScript, int64_t> > vecSend;
 // WIP: expanding the function to a general-purpose one, but still sending 1 packet only for now (30-31 bytes)
 uint256 mastercore::send_INTERNAL_1packet(const string &FromAddress, const string &ToAddress, const string &RedeemAddress, unsigned int CurrencyID, uint64_t Amount, unsigned int TransactionType, int64_t additional, int *error_code)
 {
-const uint64_t nAvailable = getMPbalance(FromAddress, CurrencyID, MONEY);
+const int64_t iAvailable = getMPbalance(FromAddress, CurrencyID, MONEY);
+const int64_t iUserAvailable = getUserAvailableMPbalance(FromAddress, CurrencyID);
 int rc = -1;
 uint256 txid = 0;
+const int64_t amount = Amount;
+const unsigned int curr = CurrencyID;
 
-  if (msc_debug_send) fprintf(mp_fp, "%s(From: %s , To: %s , Currency= %u, Amount= %lu)\n",
-   __FUNCTION__, FromAddress.c_str(), ToAddress.c_str(), CurrencyID, Amount);
+  if (msc_debug_send) fprintf(mp_fp, "%s(From: %s , To: %s , Currency= %u, Amount= %lu, Available= %ld, Pending= %ld)\n",
+   __FUNCTION__, FromAddress.c_str(), ToAddress.c_str(), CurrencyID, Amount, iAvailable, iUserAvailable);
+
+  if (mp_fp) fflush(mp_fp);
+
+  if (!isRangeOK(Amount))
+  {
+    rc -= 10;
+    if (error_code) *error_code = rc;
+
+    return 0;
+  }
 
   // make sure this address has enough MP currency available!
-  if ((nAvailable < Amount) || (0 == Amount))
+  if (((uint64_t)iAvailable < Amount) || (0 == Amount))
   {
-    LogPrintf("%s(): aborted -- not enough MP currency (%lu < %lu)\n", __FUNCTION__, nAvailable, Amount);
-    if (msc_debug_send) fprintf(mp_fp, "%s(): aborted -- not enough MP currency (%lu < %lu)\n", __FUNCTION__, nAvailable, Amount);
+    LogPrintf("%s(): aborted -- not enough MP currency (%lu < %lu)\n", __FUNCTION__, iAvailable, Amount);
+    if (msc_debug_send) fprintf(mp_fp, "%s(): aborted -- not enough MP currency (%lu < %lu)\n", __FUNCTION__, iAvailable, Amount);
 
+    if (error_code) *error_code = rc;
+
+    return 0;
+  }
+
+  // check once more, this time considering PENDING amount reduction
+  // make sure this address has enough MP currency available!
+  if ((iUserAvailable < (int64_t)Amount) || (0 == Amount))
+  {
+    LogPrintf("%s(): aborted -- not enough MP currency with PENDING reduction (%lu < %lu)\n", __FUNCTION__, iUserAvailable, Amount);
+    if (msc_debug_send) fprintf(mp_fp, "%s(): aborted -- not enough MP currency with PENDING reduction (%lu < %lu)\n", __FUNCTION__, iUserAvailable, Amount);
+
+    rc -= 1;
     if (error_code) *error_code = rc;
 
     return 0;
@@ -2696,6 +2715,10 @@ uint256 txid = 0;
   if (msc_debug_send) fprintf(mp_fp, "ClassB_send returned %d\n", rc);
 
   if (error_code) *error_code = rc;
+
+  (void) pendingAdd(txid, FromAddress, curr, amount);
+
+  if (mp_fp) fflush(mp_fp);
 
   return txid;
 }
@@ -3356,7 +3379,7 @@ int step_rc;
       }
       else
       {
-        fprintf(mp_fp, "\nPROBLEM writing %s, errno= %d\n", INFO_FILENAME, errno);
+        fprintf(mp_fp, "\nPROBLEM writing %s, errno= %d\n", OWNERS_FILENAME, errno);
       }
 
       rc = logicMath_SendToOwners(fp);

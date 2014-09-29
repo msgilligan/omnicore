@@ -167,7 +167,7 @@ Value getbalance_MP(const Array& params, bool fHelp)
 
     Object balObj;
 
-    int64_t tmpBalAvailable = getMPbalance(address, propertyId, MONEY);
+    int64_t tmpBalAvailable = getUserAvailableMPbalance(address, propertyId);
     int64_t tmpBalReservedSell = getMPbalance(address, propertyId, SELLOFFER_RESERVE);
     int64_t tmpBalReservedAccept = 0;
     if (propertyId<3) tmpBalReservedAccept = getMPbalance(address, propertyId, ACCEPT_RESERVE);
@@ -244,23 +244,6 @@ if (fHelp || params.size() < 4 || params.size() > 6)
   uint256 newTX = send_INTERNAL_1packet(FromAddress, ToAddress, RedeemAddress, propertyId, Amount, MSC_TYPE_SIMPLE_SEND, additional, &code);
 
   if (0 != code) throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("error code= %i", code));
-
-  // support for pending, 0-confirm
-  if (update_tally_map(FromAddress, propertyId, -Amount, PENDING))
-  {
-    update_tally_map(ToAddress, propertyId, Amount, PENDING);
-
-    {
-    CMPPending pending;
-
-      pending.src = FromAddress;
-      pending.dest = ToAddress;
-      pending.amount = Amount;
-      pending.curr = propertyId;
-
-      pendingAdd(newTX, pending);
-    }
-  }
 
   //we need to do better than just returning a string of 0000000 here if we can't send the TX
   return newTX.GetHex();
@@ -406,7 +389,7 @@ Value getallbalancesforid_MP(const Array& params, bool fHelp)
 
         Object addressbal;
 
-        int64_t tmpBalAvailable = getMPbalance(address, propertyId, MONEY);
+        int64_t tmpBalAvailable = getUserAvailableMPbalance(address, propertyId);
         int64_t tmpBalReservedSell = getMPbalance(address, propertyId, SELLOFFER_RESERVE);
         int64_t tmpBalReservedAccept = 0;
         if (propertyId<3) tmpBalReservedAccept = getMPbalance(address, propertyId, ACCEPT_RESERVE);
@@ -475,7 +458,7 @@ Value getallbalancesforaddress_MP(const Array& params, bool fHelp)
 
             propertyBal.push_back(Pair("propertyid", propertyId));
 
-            int64_t tmpBalAvailable = getMPbalance(address, propertyId, MONEY);
+            int64_t tmpBalAvailable = getUserAvailableMPbalance(address, propertyId);
             int64_t tmpBalReservedSell = getMPbalance(address, propertyId, SELLOFFER_RESERVE);
             int64_t tmpBalReservedAccept = 0;
             if (propertyId<3) tmpBalReservedAccept = getMPbalance(address, propertyId, ACCEPT_RESERVE);
