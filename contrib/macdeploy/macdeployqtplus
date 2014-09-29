@@ -224,7 +224,15 @@ def getFrameworks(binaryPath, verbose):
             if verbose >= 3:
                 print "Found framework:"
                 print info
-            libraries.append(info)
+#
+# Workaround for build issue (MSG 2014-09-28)
+#
+            if info.frameworkName != "libboost_system-mt.dylib":
+                print "** About to append framework named: " + info.frameworkName
+                libraries.append(info)
+            else:
+                print "** Skipping framework named: " + info.frameworkName
+
     
     return libraries
 
