@@ -1,8 +1,11 @@
 #!/bin/sh
 
+BITCOIND_BIN_NAME="mastercored"
+BITCOINCLI_BIN_NAME="mastercore-cli"
+
 # Copy the executable
-cp src/bitcoind /usr/bin/bitcoind
-cp src/bitcoin-cli /usr/bin/bitcoin-cli
+cp src/$BITCOIND_BIN_NAME /usr/bin/$BITCOIND_BIN_NAME
+cp src/$BITCOINCLI_BIN_NAME-cli /usr/bin/$BITCOINCLI_BIN_NAME
 
 # Set up directories, users, and permissions as standardized by Bitcoin Core
 mkdir -p /etc/bitcoin
