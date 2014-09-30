@@ -6,7 +6,7 @@ SERVICE_NAME="mastercored"
 
 # Copy the executable
 cp src/$BITCOIND_BIN_NAME /usr/bin/$BITCOIND_BIN_NAME
-cp src/$BITCOINCLI_BIN_NAME-cli /usr/bin/$BITCOINCLI_BIN_NAME
+cp src/$BITCOINCLI_BIN_NAME /usr/bin/$BITCOINCLI_BIN_NAME
 
 # Set up directories, users, and permissions as standardized by Bitcoin Core
 mkdir -p /etc/bitcoin
