@@ -2,6 +2,7 @@
 
 BITCOIND_BIN_NAME="mastercored"
 BITCOINCLI_BIN_NAME="mastercore-cli"
+SERVICE_NAME="mastercored"
 
 # Copy the executable
 cp src/$BITCOIND_BIN_NAME /usr/bin/$BITCOIND_BIN_NAME
@@ -27,7 +28,8 @@ chown bitcoin:bitcoin /etc/bitcoin/bitcoin.conf
 chmod 660 /etc/bitcoin/bitcoin.conf
 
 # Copy Upstart configuration file/script
-cp contrib/msc-ubuntu/bitcoind.conf /etc/init
+cp contrib/msc-ubuntu/mastercored.conf /etc/init/$SERVICE_NAME
 
-echo "Set rpcuser and rpcpassword in /etc/bitcoin/bitcoin.conf, then type: 'service bitcoind start' (as root/sudo)"
+echo "Set rpcuser and rpcpassword in /etc/bitcoin/bitcoin.conf, then type: 'service $SERVICE_NAME start' (as root/sudo)"
+
 
