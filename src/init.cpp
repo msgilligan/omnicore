@@ -933,7 +933,8 @@ bool AppInit2(boost::thread_group& threadGroup)
     }
 
      if (!fTxIndex) return InitError(_("Master Core: Please use -txindex option at the command line or add txindex=1 to bitcoin.conf file !!!\n"));  // mastercore check
-    (void) mastercore_init();
+     uiInterface.InitMessage(_("Parsing Master Protocol Transactions..."));
+     (void) mastercore_init();
 
     // ********************************************************* Step 8: load wallet
 #ifdef ENABLE_WALLET

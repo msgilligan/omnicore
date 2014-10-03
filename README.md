@@ -35,6 +35,9 @@ Testnet
 
 All functions in this mode will be TESTNET-ONLY (eg. send_MP).
 
+Upgrading
+--------------------
+After upgrading your version of Mastercore, while Mastercore is shut down, remove (rm -rf) all directories that are prefixed with 'MP_' within ~/.bitcoin (or your data dir)
 
 Dependencies
 ------------

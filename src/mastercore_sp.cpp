@@ -74,7 +74,7 @@ unsigned int CMPSPInfo::updateSP(unsigned int propertyID, Entry const &info)
     commitBatch.Put(spKey, spValue);
     pDb->Write(writeOptions, &commitBatch);
 
-    fprintf(mp_fp,"\nUpdated LevelDB with SP data successfully\n");
+    fprintf(mp_fp,"Updated LevelDB with SP data successfully\n");
     return res;
 }
 
@@ -553,6 +553,7 @@ CrowdMap::iterator my_it = my_crowds.begin();
 
       //get txdata
       sp.historicalData = crowd.getDatabase();
+      sp.missedTokens = (int64_t) missedTokens;
 
       //update SP with this data
       sp.update_block = pBlockIndex->GetBlockHash();

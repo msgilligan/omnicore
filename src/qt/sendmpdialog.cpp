@@ -72,7 +72,6 @@ SendMPDialog::SendMPDialog(QWidget *parent) :
     this->model = model;
 
 #ifdef Q_OS_MAC // Icons on push buttons are very uncommon on Mac
-    ui->addButton->setIcon(QIcon());
     ui->clearButton->setIcon(QIcon());
     ui->sendButton->setIcon(QIcon());
 #endif

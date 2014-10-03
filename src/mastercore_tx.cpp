@@ -595,12 +595,6 @@ int CMPTransaction::logicMath_RevokeTokens()
     }
 
 
-    // issuer check
-    if (false == boost::iequals(sender, sp.issuer)) {
-      fprintf(mp_fp, "\tRejecting Revoke: %s is not the issuer of SP id:%d\n", sender.c_str(), currency);
-      return (PKT_ERROR_TOKENS - 26);
-    }
-
     // insufficient funds check and revoke
     if (false == update_tally_map(sender, currency, -nValue, MONEY)) {
       fprintf(mp_fp, "\tRejecting Revoke: insufficient funds\n");
@@ -618,6 +612,48 @@ int CMPTransaction::logicMath_RevokeTokens()
 
     rc = 0;
     return rc;
+}
+
+int CMPTransaction::logicMath_ChangeIssuer()
+{
+  int rc = PKT_ERROR_TOKENS - 1000;
+
+  if (!isTransactionTypeAllowed(block, currency, type, version)) {
+    fprintf(mp_fp, "\tRejecting Change of Issuer: Transaction type not yet allowed\n");
+    return (PKT_ERROR_TOKENS - 22);
+  }
+
+  if (sender.empty()) {
+    fprintf(mp_fp, "\tRejecting Change of Issuer: Sender is empty\n");
+    return (PKT_ERROR_TOKENS - 23);
+  }
+
+  if (receiver.empty()) {
+    fprintf(mp_fp, "\tRejecting Change of Issuer: Receiver is empty\n");
+    return (PKT_ERROR_TOKENS - 23);
+  }
+
+  if (false == _my_sps->hasSP(currency)) {
+    fprintf(mp_fp, "\tRejecting Change of Issuer: SP id:%d does not exist\n", currency);
+    return (PKT_ERROR_TOKENS - 24);
+  }
+
+  CMPSPInfo::Entry sp;
+  _my_sps->getSP(currency, sp);
+
+  // issuer check
+  if (false == boost::iequals(sender, sp.issuer)) {
+    fprintf(mp_fp, "\tRejecting Change of Issuer: %s is not the issuer of SP id:%d\n", sender.c_str(), currency);
+    return (PKT_ERROR_TOKENS - 26);
+  }
+
+  // record this change of issuer
+  sp.issuer = receiver;
+  sp.update_block = chainActive[block]->GetBlockHash();
+  _my_sps->updateSP(currency, sp);
+
+  rc = 0;
+  return rc;
 }
 
 char *mastercore::c_strMasterProtocolTXType(int i)

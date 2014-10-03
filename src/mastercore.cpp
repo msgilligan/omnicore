@@ -137,6 +137,7 @@ static const int txRestrictionsRules[][3] = {
   {MSC_TYPE_CREATE_PROPERTY_MANUAL,   MSC_MANUALSP_BLOCK,      MP_TX_PKT_V0},
   {MSC_TYPE_GRANT_PROPERTY_TOKENS,    MSC_MANUALSP_BLOCK,      MP_TX_PKT_V0},
   {MSC_TYPE_REVOKE_PROPERTY_TOKENS,   MSC_MANUALSP_BLOCK,      MP_TX_PKT_V0},
+  {MSC_TYPE_CHANGE_ISSUER_ADDRESS,    MSC_MANUALSP_BLOCK,      MP_TX_PKT_V0},
 
 // end of array marker, in addition to sizeof/sizeof
   {-1,-1},
@@ -179,24 +180,33 @@ static void ShrinkMasterCoreDebugFile()
 {
     // Scroll log if it's getting too big
 #ifndef  DISABLE_LOG_FILE
+    const int buffer_size = 8000000;  // 8MBytes
     boost::filesystem::path pathLog = GetDataDir() / LOG_FILENAME;
     FILE* file = fopen(pathLog.string().c_str(), "r");
-    if (file && boost::filesystem::file_size(pathLog) > 50 * 1000000) // 50 MBytes
+
+    if (file && boost::filesystem::file_size(pathLog) > 50000000) // 50MBytes
     {
-        // Restart the file with some of the end
-        char pch[8000000]; // preserve 8MBytes of old data
-        fseek(file, -sizeof(pch), SEEK_END);
-        int nBytes = fread(pch, 1, sizeof(pch), file);
-        fclose(file);
+      // Restart the file with some of the end
+      char *pch = new char[buffer_size];
+      if (NULL != pch)
+      {
+        fseek(file, -buffer_size, SEEK_END);
+        int nBytes = fread(pch, 1, buffer_size, file);
+        fclose(file); file = NULL;
+
         file = fopen(pathLog.string().c_str(), "w");
         if (file)
         {
             fwrite(pch, 1, nBytes, file);
-            fclose(file);
+            fclose(file); file = NULL;
         }
+        delete [] pch;
+      }
     }
-    else if (file != NULL)
-        fclose(file);
+    else
+    {
+      if (NULL != file) fclose(file);
+    }
 #endif
 }
 
@@ -898,6 +908,23 @@ int TXExodusFundraiser(const CTransaction &wtx, const string &sender, int64_t Ex
   return -1;
 }
 
+static bool isAllowedOutputType(int whichType, int nBlock)
+{
+  int p2shAllowed = 0;
+
+  if (P2SH_BLOCK <= nBlock || isNonMainNet()) {
+    p2shAllowed = 1;
+  }
+  // validTypes:
+  // 1) Pay to pubkey hash
+  // 2) Pay to Script Hash (IFF p2sh is allowed)
+  if ((TX_PUBKEYHASH == whichType) || (p2shAllowed && (TX_SCRIPTHASH == whichType))) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 // idx is position within the block, 0-based
 // int msc_tx_push(const CTransaction &wtx, int nBlock, unsigned int idx)
 // INPUT: bRPConly -- set to true to avoid moving funds; to be called from various RPC calls like this
@@ -924,11 +951,6 @@ vector<string>multisig_script_data;
 uint64_t inAll = 0;
 uint64_t outAll = 0;
 uint64_t txFee = 0;
-int p2shAllowed = 0;
-
-            if (P2SH_BLOCK <= nBlock || isNonMainNet()) {
-              p2shAllowed = 1;
-            }
 
             mp_tx->Set(wtx.GetHash(), nBlock, idx, nTime);
 
@@ -978,7 +1000,7 @@ int p2shAllowed = 0;
                 txnouttype whichType;
                 bool validType = false;
                 if (!getOutputType(wtx.vout[i].scriptPubKey, whichType)) validType=false;
-                if (TX_PUBKEYHASH == whichType || (p2shAllowed && TX_SCRIPTHASH == whichType)) validType=true; // ignore non pay-to-pubkeyhash or pay-to-scripthash output
+                if (isAllowedOutputType(whichType, nBlock)) validType=true;
 
                 strAddress = CBitcoinAddress(dest).ToString();
 
@@ -1044,7 +1066,7 @@ int p2shAllowed = 0;
                 // we only allow pay-to-pubkeyhash, pay-to-scripthash & probably pay-to-pubkey (?)
                 {
                   if (!getOutputType(txPrev.vout[n].scriptPubKey, whichType)) ++inputs_errors;
-                  if ((TX_PUBKEYHASH != whichType && (p2shAllowed && TX_SCRIPTHASH != whichType)) /* || (TX_PUBKEY != whichType) */ ) ++inputs_errors;
+                  if (!isAllowedOutputType(whichType, nBlock)) ++inputs_errors;
 
                   if (inputs_errors) break;
                 }
@@ -1173,8 +1195,7 @@ int p2shAllowed = 0;
               {
                   txnouttype whichType;
                   if (!getOutputType(wtx.vout[k].scriptPubKey, whichType)) break; // unable to determine type, ignore output
-                  if (TX_PUBKEYHASH != whichType && (p2shAllowed && TX_SCRIPTHASH != whichType)) break; // ignore non pay-to-pubkeyhash output
-
+                  if (!isAllowedOutputType(whichType, nBlock)) break;
                   string strSub = script_data[k].substr(2,16); // retrieve bytes 1-9 of packet for peek & decode comparison
                   seq = (ParseHex(script_data[k].substr(0,2)))[0]; // retrieve sequence number
 
@@ -1206,7 +1227,7 @@ int p2shAllowed = 0;
                   {
                       txnouttype whichType;
                       if (!getOutputType(wtx.vout[k].scriptPubKey, whichType)) break; // unable to determine type, ignore output
-                      if (TX_PUBKEYHASH != whichType && (p2shAllowed && TX_SCRIPTHASH != whichType)) break; // ignore non pay-to-pubkeyhash output
+                      if (!isAllowedOutputType(whichType, nBlock)) break;
 
                       seq = (ParseHex(script_data[k].substr(0,2)))[0]; // retrieve sequence number
 
@@ -1233,7 +1254,7 @@ int p2shAllowed = 0;
                       {
                           txnouttype whichType;
                           if (!getOutputType(wtx.vout[k].scriptPubKey, whichType)) break; // unable to determine type, ignore output
-                          if (TX_PUBKEYHASH != whichType && (p2shAllowed && TX_SCRIPTHASH != whichType)) break; // ignore non pay-to-pubkeyhash output
+                          if (!isAllowedOutputType(whichType, nBlock)) break;
 
                           if ((address_data[k] != strDataAddress) && (address_data[k] != exodus_address) && (dataAddressValue == value_data[k])) // this output matches data output, check if matches exodus output
                           {
@@ -2183,6 +2204,7 @@ int mastercore_init()
   }
 
   printf("%s()%s, line %d, file: %s\n", __FUNCTION__, isNonMainNet() ? "TESTNET":"", __LINE__, __FILE__);
+
   ShrinkMasterCoreDebugFile();
 
 #ifndef  DISABLE_LOG_FILE
@@ -3140,6 +3162,15 @@ const std::string ExodusAddress()
   return string(exodus_address);
 }
 
+const std::string NotificationAddress()
+{
+static const string addr = "1MpNote1jsHkbQLwEmgoMr29EoUC1nyxxV";
+
+  if (isNonMainNet()) {}; // TODO pick a notification address for TestNet
+
+  return addr;
+}
+
  // the 31-byte packet & the packet #
  // int interpretPacket(int blocknow, unsigned char pkt[], int size)
  //
@@ -3258,7 +3289,7 @@ int step_rc;
 
         const unsigned int id = _my_sps->putSP(ecosystem, newSP);
         my_crowds.insert(std::make_pair(sender, CMPCrowd(id, nValue, currency, deadline, early_bird, percentage, 0, 0)));
-        fprintf(mp_fp, "\nCREATED CROWDSALE id: %u value: %lu currency: %u\n", id, nValue, currency);  
+        fprintf(mp_fp, "CREATED CROWDSALE id: %u value: %lu currency: %u\n", id, nValue, currency);  
       }
       rc = 0;
       break;
@@ -3304,12 +3335,12 @@ int step_rc;
                             crowd.getIssuerCreated());
 
         //fprintf(mp_fp,"\nValues coming out of calculateFractional(): Total tokens, Tokens created, Tokens for issuer, amountMissed: issuer %s %ld %ld %ld %f\n",sp.issuer.c_str(), crowd.getUserCreated() + crowd.getIssuerCreated(), crowd.getUserCreated(), crowd.getIssuerCreated(), missedTokens);
-        
         sp.historicalData = crowd.getDatabase();
         sp.update_block = chainActive[block]->GetBlockHash();
         sp.close_early = 1;
         sp.timeclosed = blockTime;
         sp.txid_close = txid;
+        sp.missedTokens = (int64_t) missedTokens;
         _my_sps->updateSP(crowd.getPropertyId() , sp);
         
         update_tally_map(sp.issuer, crowd.getPropertyId(), missedTokens, MONEY);
@@ -3343,7 +3374,7 @@ int step_rc;
         newSP.manual = true;
 
         const unsigned int id = _my_sps->putSP(ecosystem, newSP);
-        fprintf(mp_fp, "\nCREATED MANUAL PROPERTY id: %u admin: %s \n", id, sender.c_str());
+        fprintf(mp_fp, "CREATED MANUAL PROPERTY id: %u admin: %s \n", id, sender.c_str());
       }
       rc = 0;
       break;
@@ -3393,6 +3424,14 @@ int step_rc;
       if (0>step_rc) return step_rc;
 
       rc = logicMath_MetaDEx();
+      break;
+
+    case MSC_TYPE_CHANGE_ISSUER_ADDRESS:
+      // parse the currency from the packet
+      memcpy(&currency, &pkt[4], 4);
+      swapByteOrder32(currency);
+
+      rc = logicMath_ChangeIssuer();
       break;
 
     default:
@@ -3512,7 +3551,7 @@ int invalid = 0;  // unused
     return rc;
 }
 
-int CMPTransaction::logicMath_SendToOwners(FILE *fp)
+int CMPTransaction::logicMath_SendToOwners(FILE *fhandle)
 {
 int rc = PKT_ERROR_STO -1000;
 
@@ -3571,9 +3610,6 @@ int rc = PKT_ERROR_STO -1000;
       for(OwnerAddrType::reverse_iterator my_it = OwnerAddrSet.rbegin(); my_it != OwnerAddrSet.rend(); ++my_it)
       {
         n_owners++;
-
-        // record the detailed info as needed
-        if (fp) fprintf(fp, "#%ld: %lu = %s\n", n_owners, (my_it->first), (my_it->second).c_str());
       }
 
       fprintf(mp_fp, "\t          Owners: %lu\n", n_owners);
@@ -3642,6 +3678,9 @@ int rc = PKT_ERROR_STO -1000;
         if (msc_debug_sto)
          fprintf(mp_fp, "%14lu = %s, perc= %20.10lf, piece= %20.10lf, should_get= %14lu, will_really_get= %14lu, sent_so_far= %14lu\n",
           owns, address.c_str(), percentage, piece, should_receive, will_really_receive, sent_so_far);
+
+        // record the detailed info as needed
+        if (fhandle) fprintf(fhandle, "%s = %s\n", address.c_str(), bDivisible ?  FormatDivisibleMP(will_really_receive).c_str() : FormatIndivisibleMP(will_really_receive).c_str());
 
         if (!update_tally_map(sender, currency, - will_really_receive, MONEY))
         {
