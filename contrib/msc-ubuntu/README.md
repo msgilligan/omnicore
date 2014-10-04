@@ -12,15 +12,21 @@ To install:
 
         sudo ./contrib/msc-ubuntu/install-mastercore-upstart.sh
 
-Running `bitcoin-cli` for a quick test:
+Running `mastercore-cli` for a quick test:
 
 1. Add your user to the `bitcoin` group so you can read `/etc/bitcoin/bitcoin.conf`
 
         sudo usermod -a -G bitcoin <username>
 
-1. Use `getinfo` to make sure RPC is working
+1. Edit /etc/bitcoin/bitcoin.conf and uncomment and set `rpcuser` and `rpcpassword`.
 
-        /usr/sbin/bitcoin-cli -conf=/etc/bitcoin/bitcoin.conf getinfo
+1. Start the `mastercored` service.
+
+        sudo service mastercored start
+
+1. Use the `getinfo` RPC to make sure the daemon and RPC is working
+
+        /usr/sbin/mastercore-cli -conf=/etc/bitcoin/bitcoin.conf getinfo
 
 
 This is based upon upstream work that is documented in these links:
