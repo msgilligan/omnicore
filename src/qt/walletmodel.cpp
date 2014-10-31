@@ -18,6 +18,7 @@
 #include "wallet.h"
 #include "walletdb.h" // for BackupWallet
 
+#include <boost/timer.hpp>
 #include <stdint.h>
 
 #include <QDebug>
@@ -41,6 +42,11 @@ WalletModel::WalletModel(CWallet *wallet, OptionsModel *optionsModel, QObject *p
     pollTimer = new QTimer(this);
     connect(pollTimer, SIGNAL(timeout()), this, SLOT(pollBalanceChanged()));
     pollTimer->start(MODEL_UPDATE_DELAY);
+
+    // The above timer is much faster than needed for MasterCore usage, we'll have a new one here
+    updateTimer = new QTimer(this);
+    connect(updateTimer, SIGNAL(timeout()), this, SLOT(forceUpdateBalances()));
+    updateTimer->start(MASTERCORE_UPDATE_DELAY);
 
     subscribeToCoreSignals();
 }
@@ -94,6 +100,40 @@ void WalletModel::updateStatus()
 
     if(cachedEncryptionStatus != newEncryptionStatus)
         emit encryptionStatusChanged(newEncryptionStatus);
+}
+
+void WalletModel::forceUpdateBalances()
+{
+    // time this
+    // boost::timer t;
+
+    // Get required locks upfront. This avoids the GUI from getting stuck on
+    // periodical polls if the core is holding the locks for a longer time -
+    // for example, during a wallet rescan.
+    TRY_LOCK(cs_main, lockMain);
+    if(!lockMain)
+        return;
+    TRY_LOCK(wallet->cs_wallet, lockWallet);
+    if(!lockWallet)
+        return;
+
+    qint64 newBalance = getBalance();
+    qint64 newUnconfirmedBalance = getUnconfirmedBalance();
+    qint64 newImmatureBalance = getImmatureBalance();
+
+    if(cachedBalance != newBalance || cachedUnconfirmedBalance != newUnconfirmedBalance || cachedImmatureBalance != newImmatureBalance)
+    {
+        cachedBalance = newBalance;
+        cachedUnconfirmedBalance = newUnconfirmedBalance;
+        cachedImmatureBalance = newImmatureBalance;
+    }
+
+    // force everything to be updated
+    emit balanceChanged(newBalance, newUnconfirmedBalance, newImmatureBalance);
+    if(transactionTableModel) transactionTableModel->updateConfirmations();
+    // printf("DEBUG: forceUpdate took");
+    // std::cout << t.elapsed() << std::endl;
+    // printf("\n");
 }
 
 void WalletModel::pollBalanceChanged()

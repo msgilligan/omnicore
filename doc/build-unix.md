@@ -158,8 +158,6 @@ cd $BITCOIN_ROOT
 ./configure (other args...) LDFLAGS="-L${BDB_PREFIX}/lib/" CPPFLAGS="-I${BDB_PREFIX}/include/"
 ```
 
-**Note**: You only need Berkeley DB if the wallet is enabled (see the section *Disable-Wallet mode* below).
-
 Boost
 -----
 If you need to build Boost yourself:
@@ -216,16 +214,4 @@ Hardening enables the following features:
 	RW- R-- RW-
 
     The STK RW- means that the stack is readable and writeable but not executable.
-
-Disable-wallet mode
---------------------
-When the intention is to run only a P2P node without a wallet, bitcoin may be compiled in
-disable-wallet mode with:
-
-    ./configure --disable-wallet
-
-In this case there is no dependency on Berkeley DB 4.8.
-
-Mining is also possible in disable-wallet mode, but only using the `getblocktemplate` RPC
-call not `getwork`.
 

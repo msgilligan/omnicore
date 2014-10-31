@@ -8,6 +8,9 @@
 /* Milliseconds between model updates */
 static const int MODEL_UPDATE_DELAY = 250;
 
+/* Milliseconds for MasterCore forced updates to catch anything missed - every 7s */
+static const int MASTERCORE_UPDATE_DELAY = 7000;
+
 /* AskPassphraseDialog -- Maximum passphrase length */
 static const int MAX_PASSPHRASE_SIZE = 1024;
 

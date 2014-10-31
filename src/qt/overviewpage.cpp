@@ -211,7 +211,8 @@ void OverviewPage::setBalance(qint64 balance, qint64 unconfirmedBalance, qint64 
     //scrappy way to do this, find a more efficient way of interacting with labels
     //show first 5 SPs with balances - needs to be converted to listwidget or something
     unsigned int propertyId;
-    unsigned int lastFoundPropertyId = 1;
+    unsigned int lastFoundPropertyIdMainEco = 1;
+    unsigned int lastFoundPropertyIdTestEco = 1;
     string spName[7];
     uint64_t spBal[7];
     bool spDivisible[7];
@@ -222,12 +223,12 @@ void OverviewPage::setBalance(qint64 balance, qint64 unconfirmedBalance, qint64 
     for (spItem = 1; spItem < 7; spItem++)
     {
         spFound[spItem] = false;
-        for (propertyId = lastFoundPropertyId+1; propertyId<100000; propertyId++)
+        for (propertyId = lastFoundPropertyIdMainEco+1; propertyId<100000; propertyId++)
         {
             foundProperty=false;
             if ((global_balance_money_maineco[propertyId] > 0) || (global_balance_reserved_maineco[propertyId] > 0))
             {
-                lastFoundPropertyId = propertyId;
+                lastFoundPropertyIdMainEco = propertyId;
                 foundProperty=true;
                 spName[spItem] = getPropertyName(propertyId).c_str();
                 if(spName[spItem].size()>22) spName[spItem]=spName[spItem].substr(0,22)+"...";
@@ -241,11 +242,11 @@ void OverviewPage::setBalance(qint64 balance, qint64 unconfirmedBalance, qint64 
         // have we found a property in main eco?  If not let's try test eco
         if (!foundProperty)
         {
-            for (propertyId = lastFoundPropertyId+1; propertyId<100000; propertyId++)
+            for (propertyId = lastFoundPropertyIdTestEco+1; propertyId<100000; propertyId++)
             {
                 if ((global_balance_money_testeco[propertyId] > 0) || (global_balance_reserved_testeco[propertyId] > 0))
                 {
-                    lastFoundPropertyId = propertyId;
+                    lastFoundPropertyIdTestEco = propertyId;
                     foundProperty=true;
                     spName[spItem] = getPropertyName(propertyId+2147483647).c_str();
                     if(spName[spItem].size()>22) spName[spItem]=spName[spItem].substr(0,22)+"...";
@@ -265,6 +266,9 @@ void OverviewPage::setBalance(qint64 balance, qint64 unconfirmedBalance, qint64 
         // only need custom tokenLabel for SP1 since TMSC will always be first
         string tokenLabel;
         if (spName[1]=="Test MasterCoin (#2)") { tokenLabel = " TMSC"; } else { tokenLabel = " SPT"; }
+
+        ui->SPname1->setVisible(true);
+        ui->SPbal1->setVisible(true);
 
         ui->SPname1->setText(spName[1].c_str());
         if (spDivisible[1])
@@ -287,6 +291,9 @@ void OverviewPage::setBalance(qint64 balance, qint64 unconfirmedBalance, qint64 
     }
     if (spFound[2])
     {
+        ui->SPname2->setVisible(true);
+        ui->SPbal2->setVisible(true);
+
         ui->SPname2->setText(spName[2].c_str());
         if (spDivisible[2])
         {
@@ -308,6 +315,9 @@ void OverviewPage::setBalance(qint64 balance, qint64 unconfirmedBalance, qint64 
     }
     if (spFound[3])
     {
+        ui->SPname3->setVisible(true);
+        ui->SPbal3->setVisible(true);
+
         ui->SPname3->setText(spName[3].c_str());
         if (spDivisible[3])
         {
@@ -329,6 +339,9 @@ void OverviewPage::setBalance(qint64 balance, qint64 unconfirmedBalance, qint64 
     }
     if (spFound[4])
     {
+        ui->SPname4->setVisible(true);
+        ui->SPbal4->setVisible(true);
+
         ui->SPname4->setText(spName[4].c_str());
         if (spDivisible[4])
         {
@@ -350,6 +363,9 @@ void OverviewPage::setBalance(qint64 balance, qint64 unconfirmedBalance, qint64 
     }
     if (spFound[5])
     {
+        ui->SPname5->setVisible(true);
+        ui->SPbal5->setVisible(true);
+
         ui->SPname5->setText(spName[5].c_str());
         if (spDivisible[5])
         {
