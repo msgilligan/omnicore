@@ -3,7 +3,7 @@ Building Master Core on OS X
 
 Building Master Core on OS X should not be any different than building Bitcoin Core. However, since the Bitcoin Core Mac OS X documentation is scattered in different locations, incomplete, and inaccurate (apparently) in some places, we are creating some build instructions and notes here.
 
-This is a *preliminary document* that will be updated as the build process is improved and replicated by more developers. As the quality and accuraccy of this document improves (and we are are able to verify the process works for unmodified Bitcoin Core) we will work to submit corrections and improvements upstream.
+This is a *preliminary document* that will be updated as the build process is improved and replicated by more developers. As the quality and accuracy of this document improves (and we are are able to verify the process works for unmodified Bitcoin Core) we will work to submit corrections and improvements upstream.
 
 # Supported Mac OS X versions
 
