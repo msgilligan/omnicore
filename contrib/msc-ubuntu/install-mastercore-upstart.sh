@@ -22,10 +22,12 @@ chmod 750 /var/lib/bitcoind
 chown bitcoin:bitcoin /var/run/bitcoind
 chmod 755 /var/run/bitcoind
 
-# Copy Bitcoin configuration file
-cp contrib/msc-ubuntu/bitcoin.conf /etc/bitcoin
-chown bitcoin:bitcoin /etc/bitcoin/bitcoin.conf
-chmod 660 /etc/bitcoin/bitcoin.conf
+# Copy Template Bitcoin configuration file
+cp contrib/msc-ubuntu/bitcoin.conf /etc/bitcoin/bitcoin-msc-template.conf
+# If bitcoin.conf doesn't exist, put template in place
+cp --no-clobber /etc/bitcoin/bitcoin-msc-template.conf /etc/bitcoin/bitcoin.conf
+chown bitcoin:bitcoin /etc/bitcoin/bitcoin-msc-template.conf /etc/bitcoin/bitcoin.conf
+chmod 660 /etc/bitcoin/bitcoin-msc-template.conf /etc/bitcoin/bitcoin.conf
 
 # Copy Upstart configuration file/script
 cp contrib/msc-ubuntu/mastercored.conf /etc/init/$SERVICE_NAME.conf
