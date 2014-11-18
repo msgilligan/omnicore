@@ -15,7 +15,7 @@ There are (at least) four different ways to build and run Master Core on Mac OS 
 
 1. Build on Mac OS X for Mac OS X using Homebrew and command line tools
 
-    This is the fastest and easiest way to build a native Master Core for Mac OS X from source code. Note: We are currently working on this build on the `mscore-0.0.9` branch.
+    This is the fastest and easiest way to build a native Master Core for Mac OS X from source code. Note: We are currently working on this build on the `omnicore-develop` branch in the [msgilligan/mastercore](https://github.com/msgilligan/mastercore) repository.
 
 1. Build on Mac OS X for Mac OS X using Xcode
 
@@ -27,7 +27,7 @@ There are (at least) four different ways to build and run Master Core on Mac OS 
 
 1. Build on Linux and run on Linux inside a Virtual Machine.
 
-    If you want to work with Master Core locally, but are deployng to a Linux server, and would like to replicate your deployment environment for development, this is your best option. This is also the only recommended approach for the `mscore-0.0.8` branch.
+    If you want to work with Master Core locally, but are deploying to a Linux server, and would like to replicate your deployment environment for development, this is your best option. This is also the only recommended approach for the `mscore-0.0.8` branch.
 
 # Command-line Build using Homebrew
 
@@ -35,41 +35,36 @@ This process is [documented upstream](https://github.com/bitcoin/bitcoin/blob/ma
 
 ## Preparation
 
-See the upstream instructions. Note that the upstream instructions seem to be missing a dependency that must be installed as follows:
+See the upstream instructions. Note that in at least one configuration the following additional Homebrew command was required to get the build working:
 
     `brew install libqrencode`
 
-## Headless Build (mastercored)
+## Git Clone and Checkout
+
+Preliminary Mac OS X build support is currently in the `omnicore-develop` branch in the [msgilligan/mastercore](https://github.com/msgilligan/mastercore) repository. To checkout this branch:
+
+    git clone https://github.com/msgilligan/mastercore.git
+    cd mastercore
+    git checkout omnicore-develop
+
+## Build mastercored and mastercore-cli
 
 See the upstream insructions for complete details. Note that we've found that`--enable-tests=no` is currently necessary.
 
     ./autogen.sh
-    ./configure --with-gui=no --enable-tests=no
+    ./configure --enable-tests=no
     make
     make install
 
-## GUI Build (MasterCore-Qt.app)
-
-Again, make sure to check the upstream instructions. To build the executable itself:
-
-    ./autogen.sh
-    ./configure --with-gui=yes --enable-tests=no
-    make
-    make install
+## Build MasterCore-Qt.app
 
 To package as an application and as a disk image:
 
     make MasterCore-Qt.dmg
 
-Known issues:
-
-1. Until [PR #203](https://github.com/mastercoin-MSC/mastercore/pull/203) is merged, you'll need to apply those changes manually before attempting a GUI build.
-1. Until there is a better solution, you'll also need to apply the following patch manually: [050fe38](https://github.com/mastercoin-MSC/mastercore/commit/050fe3811339a13db1b2e6ced67bb4299355422d)
-
 # Build using Xcode
 
 There is currently a Pull Request upstream [PR #5276](https://github.com/bitcoin/bitcoin/pull/5276) with an Xcode build of Bitcoin-Qt. We haven't tried this with Master Core, yet.
-
 
 # Gitian Build
 
