@@ -43,7 +43,8 @@ The **getbalance_MP** call allows for retrieval of a Master Protocol balance for
 - **_property ID (integer):_** A valid Master Protocol property ID
 
 **Additional Optional Parameters**
-- There are currently no supported optional parameters for this call.
+- **_redeem address (string):_** The address that can redeem the bitcoin/multisig outputs. Defaults to FromAddress, required to redeem MP transactions created with P2SH.
+- **_reference amount (string):_** Additional Bitcoin amount to send to the recepient address. (Max: 0.01 BTC).
 
 **Examples**
 ```
