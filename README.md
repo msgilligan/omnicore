@@ -62,6 +62,7 @@ Clone the Master Core repository:
  cd mastercore/
 ```
 
+Then, run
 Then, run:
 
 ```

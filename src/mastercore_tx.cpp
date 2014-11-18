@@ -357,7 +357,7 @@ static const char * const subaction_name[] = { "empty", "new", "update", "cancel
           {
             if ((CANCEL != subaction) && (UPDATE != subaction))
             {
-              file_log("%s() INVALID SELL OFFER -- ONE ALREADY EXISTS, line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
+              file_log("%s() INVALID SELL OFFER -- ONE ALREADY EXISTS\n", __FUNCTION__);
               rc = PKT_ERROR_TRADEOFFER -11;
               break;
             }
@@ -471,18 +471,18 @@ unsigned char action = 0;
         // ensure the 4 necessary parameters for this command are provided
         // TODO
         // ...
-        rc = MetaDEx_CANCEL_AT_PRICE(sender, property, nNewValue, desired_property, desired_value);
+        rc = MetaDEx_CANCEL_AT_PRICE(txid, block, sender, property, nNewValue, desired_property, desired_value);
         break;
 
       case CANCEL_ALL_FOR_PAIR:
         // ensure the 2 necessary parameters for this command are provided
         // TODO
         // ...
-        rc = MetaDEx_CANCEL_ALL_FOR_PAIR(sender, property, desired_property);
+        rc = MetaDEx_CANCEL_ALL_FOR_PAIR(txid, block, sender, property, desired_property);
         break;
 
       case CANCEL_EVERYTHING:
-        rc = MetaDEx_CANCEL_EVERYTHING(sender);
+        rc = MetaDEx_CANCEL_EVERYTHING(txid, block, sender);
         break;
 
       default:

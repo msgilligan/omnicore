@@ -42,7 +42,7 @@
 using boost::multiprecision::int128_t;
 using boost::multiprecision::cpp_int;
 using boost::multiprecision::cpp_dec_float;
-using boost::multiprecision::cpp_dec_float_50;
+using boost::multiprecision::cpp_dec_float_100;
 
 using namespace std;
 using namespace boost;
@@ -196,11 +196,12 @@ const XDOUBLE desprice = (1/buyersprice); // inverse, to be matched against that
         // p_older is the old order pointer
         // newo is the new order pointer
         // the price in the older order is used
+        const int64_t seller_amountForSale = p_older->getAmountForSale();
         const int64_t seller_amountWanted = p_older->getAmountDesired();
-        const int64_t buyer_amountOffered = newo->getAmount();
+        const int64_t buyer_amountOffered = newo->getAmountForSale();
 
-        if (msc_debug_metadex) file_log("$$ trading using price: %s; seller amount wanted= %ld, buyer amount offered= %ld\n",
-         sellers_price.str(DISPLAY_PRECISION_LEN, std::ios_base::fixed), seller_amountWanted, buyer_amountOffered);
+        if (msc_debug_metadex) file_log("$$ trading using price: %s; seller: forsale= %ld, wanted= %ld, buyer amount offered= %ld\n",
+         sellers_price.str(DISPLAY_PRECISION_LEN, std::ios_base::fixed), seller_amountForSale, seller_amountWanted, buyer_amountOffered);
 
         if (msc_debug_metadex) file_log("$$ old: %s\n", p_older->ToString());
         if (msc_debug_metadex) file_log("$$ new: %s\n", newo->ToString());
@@ -220,12 +221,15 @@ const XDOUBLE desprice = (1/buyersprice); // inverse, to be matched against that
         std::string str_buyer_got_int_part = str_buyer_got.substr(0, str_buyer_got.find_first_of("."));
         const int64_t buyer_amountGot = boost::lexical_cast<int64_t>( str_buyer_got_int_part );
 
-        const int64_t seller_amountLeft = p_older->getAmount() - buyer_amountGot;
+        const int64_t seller_amountLeft = p_older->getAmountForSale() - buyer_amountGot;
 
         if (msc_debug_metadex) file_log("$$ buyer_got= %ld, seller_got= %ld, seller_left_for_sale= %ld, buyer_still_for_sale= %ld\n",
          buyer_amountGot, seller_amountGot, seller_amountLeft, buyer_amountStillForSale);
 
         XDOUBLE amount_left = (XDOUBLE) seller_amountLeft * sellers_price;
+
+        amount_left += (XDOUBLE) 0.5; // ROUND UP
+
         std::string str_amount_left = amount_left.str(INTERNAL_PRECISION_LEN, std::ios_base::fixed);
         std::string str_left_int_part = str_amount_left.substr(0, str_amount_left.find_first_of("."));
 
@@ -256,13 +260,13 @@ const XDOUBLE desprice = (1/buyersprice); // inverse, to be matched against that
         NewReturn = TRADED;
 
         XDOUBLE will_pay = (XDOUBLE) buyer_amountStillForSale * newo->effectivePrice();
+
+        will_pay += (XDOUBLE) 0.5;  // ROUND UP
+
         std::string str_will_pay = will_pay.str(INTERNAL_PRECISION_LEN, std::ios_base::fixed);
         std::string str_will_pay_int_part = str_will_pay.substr(0, str_will_pay.find_first_of("."));
 
-//        newo->setAmountForSale(boost::lexical_cast<int64_t>( str_wanted_int_part ), "buyer");
-        newo->setAmountForSale(buyer_amountStillForSale);
-//        newo->setAmountDesired(buyer_amountStillWanted, "buyer");
-//        newo->setAmountDesired(will_pay_int_part, "buyer");
+        newo->setAmountForSale(buyer_amountStillForSale, "buyer");
         newo->setAmountDesired(boost::lexical_cast<int64_t>( str_will_pay_int_part ), "buyer");
 
         if (0 < buyer_amountStillForSale)
@@ -296,7 +300,7 @@ const XDOUBLE desprice = (1/buyersprice); // inverse, to be matched against that
       if (bBuyerSatisfied)
       {
         // insert the updated one in place of the old
-        if (0 < seller_replacement.getAmount())
+        if (0 < seller_replacement.getAmountForSale())
         {
           file_log("++ inserting seller_replacement: %s\n", seller_replacement.ToString());
           indexes->insert(seller_replacement);
@@ -764,7 +768,7 @@ int rc = METADEX_ERROR -1;
 
 #if 0
     // if anything is left in the new order, INSERT
-    if ((0 < new_mdex.getAmount()) && (!disable_Combo))
+    if ((0 < new_mdex.getAmountForSale()) && (!disable_Combo))
     {
       x_AddOrCancel(&new_mdex); // straight match to ADD
     }
@@ -773,7 +777,7 @@ int rc = METADEX_ERROR -1;
     if (msc_debug_metadex3) MetaDEx_debug_print();
 
     // plain insert
-    if (0 < new_mdex.getAmount())
+    if (0 < new_mdex.getAmountForSale())
     { // not added nor subtracted, insert as new or post-traded amounts
     md_PricesMap temp_prices, *p_prices = get_Prices(prop);
     md_Set temp_indexes, *p_indexes = NULL;
@@ -790,14 +794,13 @@ int rc = METADEX_ERROR -1;
 
       if (false == ret.second)
       {
-        printf("%s() ERROR: ALREADY EXISTS, line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
         file_log("%s() ERROR: ALREADY EXISTS, line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
       }
       else
       {
-        if (update_tally_map(sender_addr, prop, - new_mdex.getAmount(), BALANCE)) // subtract from what's available
+        if (update_tally_map(sender_addr, prop, - new_mdex.getAmountForSale(), BALANCE)) // subtract from what's available
         {
-          update_tally_map(sender_addr, prop, new_mdex.getAmount(), SELLOFFER_RESERVE); // put in reserve
+          update_tally_map(sender_addr, prop, new_mdex.getAmountForSale(), SELLOFFER_RESERVE); // put in reserve
         }
 
         // price check
@@ -820,20 +823,20 @@ int rc = METADEX_ERROR -1;
   return rc;
 }
 
-int mastercore::MetaDEx_CANCEL_AT_PRICE(const string &sender_addr, unsigned int prop, uint64_t amount, unsigned int property_desired, uint64_t amount_desired)
+int mastercore::MetaDEx_CANCEL_AT_PRICE(const uint256 txid, unsigned int block, const string &sender_addr, unsigned int prop, uint64_t amount, unsigned int property_desired, uint64_t amount_desired)
 {
 int rc = METADEX_ERROR -20;
 CMPMetaDEx mdex(sender_addr, 0, prop, amount, property_desired, amount_desired, 0, 0, CMPTransaction::CANCEL_AT_PRICE);
 md_PricesMap *prices = get_Prices(prop);
 const CMPMetaDEx *p_mdex = NULL;
 
-  file_log("%s():%s\n", __FUNCTION__, mdex.ToString());
+  if (msc_debug_metadex) file_log("%s():%s\n", __FUNCTION__, mdex.ToString());
 
   if (msc_debug_metadex2) MetaDEx_debug_print();
 
   if (!prices)
   {
-    file_log("%s() NOTHING FOUND, line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
+    file_log("%s() NOTHING FOUND for %s\n", __FUNCTION__, mdex.ToString());
     return rc -1;
   }
 
@@ -862,8 +865,12 @@ const CMPMetaDEx *p_mdex = NULL;
       file_log("%s(): REMOVING %s\n", __FUNCTION__, p_mdex->ToString());
 
       // move from reserve to main
-      update_tally_map(p_mdex->getAddr(), p_mdex->getProperty(), - p_mdex->getAmount(), SELLOFFER_RESERVE);
-      update_tally_map(p_mdex->getAddr(), p_mdex->getProperty(), p_mdex->getAmount(), BALANCE);
+      update_tally_map(p_mdex->getAddr(), p_mdex->getProperty(), - p_mdex->getAmountForSale(), SELLOFFER_RESERVE);
+      update_tally_map(p_mdex->getAddr(), p_mdex->getProperty(), p_mdex->getAmountForSale(), BALANCE);
+
+      // record the cancellation
+      bool bValid = true;
+      p_txlistdb->recordMetaDExCancelTX(txid, p_mdex->getHash(), bValid, block, p_mdex->getProperty(), p_mdex->getAmountForSale());
 
       indexes->erase(iitt++);
     }
@@ -874,7 +881,7 @@ const CMPMetaDEx *p_mdex = NULL;
   return rc;
 }
 
-int mastercore::MetaDEx_CANCEL_ALL_FOR_PAIR(const string &sender_addr, unsigned int prop, unsigned int property_desired)
+int mastercore::MetaDEx_CANCEL_ALL_FOR_PAIR(const uint256 txid, unsigned int block, const string &sender_addr, unsigned int prop, unsigned int property_desired)
 {
 int rc = METADEX_ERROR -30;
 md_PricesMap *prices = get_Prices(prop);
@@ -886,7 +893,7 @@ const CMPMetaDEx *p_mdex = NULL;
 
   if (!prices)
   {
-    file_log("%s() NOTHING FOUND, line %d, file: %s\n", __FUNCTION__, __LINE__, __FILE__);
+    file_log("%s() NOTHING FOUND\n", __FUNCTION__);
     return rc -1;
   }
 
@@ -911,8 +918,12 @@ const CMPMetaDEx *p_mdex = NULL;
       file_log("%s(): REMOVING %s\n", __FUNCTION__, p_mdex->ToString());
 
       // move from reserve to main
-      update_tally_map(p_mdex->getAddr(), p_mdex->getProperty(), - p_mdex->getAmount(), SELLOFFER_RESERVE);
-      update_tally_map(p_mdex->getAddr(), p_mdex->getProperty(), p_mdex->getAmount(), BALANCE);
+      update_tally_map(p_mdex->getAddr(), p_mdex->getProperty(), - p_mdex->getAmountForSale(), SELLOFFER_RESERVE);
+      update_tally_map(p_mdex->getAddr(), p_mdex->getProperty(), p_mdex->getAmountForSale(), BALANCE);
+
+      // record the cancellation
+      bool bValid = true;
+      p_txlistdb->recordMetaDExCancelTX(txid, p_mdex->getHash(), bValid, block, p_mdex->getProperty(), p_mdex->getAmountForSale());
 
       indexes->erase(iitt++);
     }
@@ -924,7 +935,7 @@ const CMPMetaDEx *p_mdex = NULL;
 }
 
 // scan the orderbook and remove everything for an address
-int mastercore::MetaDEx_CANCEL_EVERYTHING(const string &sender_addr)
+int mastercore::MetaDEx_CANCEL_EVERYTHING(const uint256 txid, unsigned int block, const string &sender_addr)
 {
 int rc = METADEX_ERROR -40;
 
@@ -962,8 +973,12 @@ int rc = METADEX_ERROR -40;
         file_log("%s(): REMOVING %s\n", __FUNCTION__, it->ToString());
 
         // move from reserve to balance
-        update_tally_map(it->getAddr(), it->getProperty(), - it->getAmount(), SELLOFFER_RESERVE);
-        update_tally_map(it->getAddr(), it->getProperty(), it->getAmount(), BALANCE);
+        update_tally_map(it->getAddr(), it->getProperty(), - it->getAmountForSale(), SELLOFFER_RESERVE);
+        update_tally_map(it->getAddr(), it->getProperty(), it->getAmountForSale(), BALANCE);
+
+        // record the cancellation
+        bool bValid = true;
+        p_txlistdb->recordMetaDExCancelTX(txid, it->getHash(), bValid, block, it->getProperty(), it->getAmountForSale());
 
         indexes.erase(it++);
       }
