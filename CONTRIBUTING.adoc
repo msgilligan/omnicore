@@ -21,20 +21,8 @@ comments!]
 
 [Some introduction ... what?]
 
-[[topics]]
-== Topics:
-
-* link:#glossary[Glossary] +
-* link:#reporting-security-issues[Reporting security issues] +
-* link:#reporting-other-issues[Reporting other issues] +
-* link:#requesting-features[Requesting features] +
-* link:#submitting-and-working-on-pull-requests[Submitting and working
-on pull requests] +
-* link:#reviewing-contributions[Reviewing contributions] +
-* link:#whats-next[What's next?]
-
 [[glossary]]
-== Glossary:
+== Glossary
 
 From time to time contributors or maintainers use abbreviations, and
 it's likely that you stumble over one of the following at some point:
@@ -55,7 +43,7 @@ I'm using them in this document, too, but ideally we don't use them
 here.]
 
 [[reporting-security-issues]]
-== Reporting security issues:
+== Reporting Security Issues
 
 Issues with potential security implications should not be published, but
 instead communicated via email to [... where?].
@@ -76,10 +64,10 @@ were fixed, +
 and the contributor might be notified in such a case, if desired?]
 
 [[reporting-other-issues]]
-== Reporting other issues:
+== Reporting Other Issues
 
 [[contributors]]
-===== Contributors:
+=== Contributors
 
 1.  contributors should try to describe the observed behavior of the
 potential issue +
@@ -102,7 +90,7 @@ It might be described that we intend to resolve issues (which is kind of
 obvious, but still).]
 
 [[maintainers]]
-===== Maintainers:
+=== Maintainers
 
 1.  maintainers should react within 24-48 hours (?) (whereby a response
 such as "... I'm going to look into it, and will keep you updated within
@@ -118,7 +106,7 @@ non-producible and likely not verifiable without further input, should
 (may?) be closed after [... what timespan?]
 
 [[requesting-features]]
-== Requesting features:
+== Requesting features
 
 Proposals, feature requests and new ideas for Omni Core are welcome!
 
@@ -129,7 +117,7 @@ section of the protocol specification or on the developer mailing list:
 * https://github.com/OmniLayer/spec/issues
 
 [[submitting-and-working-on-pull-requests]]
-== Submitting and working on pull requests:
+== Submitting and Working on Pull Requests:
 
 [Some general words about the lifecycle of pull requests etc. ... what
 exactly?]
@@ -145,7 +133,7 @@ submission --> work in progress --> tests and peer review --> ack  --> merge
 [This might be converted into an actual image.]
 
 [[contributors-1]]
-===== Contributors:
+=== Contributors
 
 1.  communication is key, and contributors should not hesitate to ask
 for assistance +
@@ -189,7 +177,7 @@ review. +
 Include other links to test resources maybe?]
 
 [[maintainers-1]]
-===== Maintainers:
+=== Maintainers
 
 1.  maintainers should welcome and encourage submissions, especially
 from new users +
@@ -205,12 +193,12 @@ ready +
 [... what timespan?]
 
 [[reviewing-contributions]]
-== Reviewing contributions:
+== Reviewing Contributions
 
 [Maybe some general words on this..? If so, what?]
 
 [[contributors-2]]
-===== Contributors:
+=== Contributors
 
 1.  "work in progress" may be left alone until the status is upgraded,
 but comments are nevertheless welcome (?) +
@@ -221,7 +209,7 @@ issues +
 by no means intended as such!)
 
 [[maintainers-2]]
-===== Maintainers:
+=== Maintainers
 
 1.  maintainers should signal the time needed for review, in case it
 takes longer (which threshold? how long is "longer"? 48 hours, ...?) +
