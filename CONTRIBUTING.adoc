@@ -1,5 +1,15 @@
 [[contributing-to-omni-core]]
 = Contributing to Omni Core
+DexX7
+:jbake-type: page
+:jbake-status: published
+:jbake-tags: omni, specification, whitepaper
+:idprefix:
+:numbered:
+:toc: macro
+:toclevels: 1
+
+toc::[]
 
 [Comments in brackets are TODOs. +
 The numbered lists with keyword-ish descriptions are mostly notes, and
