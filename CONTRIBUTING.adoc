@@ -22,23 +22,6 @@ comments!
 
 NOTE: Some introduction should go here. What??
 
-[[glossary]]
-== Glossary
-
-From time to time contributors or maintainers use abbreviations, and
-it's likely that you stumble over one of the following at some point:
-
-1.  ACK: agreement with an idea, change or submission +
-2.  NACK: disagreement or rejection of a proposal +
-3.  NIT: comment on an almost trivial issue +
-4.  PR: pull request +
-5.  WIP: work in progress +
-6.  maintainer: project administrator, collaborator +
-7.  contributor: someone who submits pull requests, issues, comments,
-...
-
-NOTE: The glossary may not be used at all, or maybe placed at the end? It could be useful, given that the words are frequently used in the
-wild.  I'm using them in this document, too, but ideally we don't use them here.
 
 [[reporting-security-issues]]
 == Reporting Security Issues
@@ -235,3 +218,23 @@ I think it would be good to include some references, for example to the
 other docs, or related Omni projects? We may also note that actually using and testing the software is helpful (e.g. point to the MetaDEx test guide),
 and it may also be noted that posting on Reddit etc. is also a form of
 contribution, however that's probably better for the introduction.
+====
+
+[glossary]
+== Glossary
+
+From time to time contributors or maintainers use abbreviations, and
+it's likely that you stumble over one of the following at some point:
+
+[glossary]
+ACK:: agreement with an idea, change or submission
+NACK:: disagreement or rejection of a proposal
+NIT:: comment on an almost trivial issue
+PR:: pull request
+WIP:: work in progress
+maintainer:: project administrator, collaborator
+contributor:: someone who submits pull requests, issues, comments, etc.
+
+NOTE: The glossary may not be used at all. It could be useful, given that the words are frequently used in the
+wild.  I'm using them in this document, too, but ideally we don't use them here.
+
